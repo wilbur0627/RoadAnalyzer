@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoadAnalyzer</title>
+  <link rel="stylesheet" href="./popup.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Disclaimer overlay -->
+    <div id="disclaimer-overlay" class="hidden">
+      <div class="disclaimer-box">
+        <div class="disclaimer-icon">⚠</div>
+        <p id="disclaimer-text"></p>
+        <button id="disclaimer-btn"></button>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1 id="app-title" class="title"></h1>
+        <span id="detection-status" class="status-badge"></span>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+    </header>
+
+    <!-- Stats bar -->
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-label" data-i18n="stats.total"></span>
+        <span id="stat-total" class="stat-value">0</span>
+      </div>
+      <div class="stat banker">
+        <span class="stat-label" data-i18n="stats.banker"></span>
+        <span id="stat-banker" class="stat-value">0</span>
+        <span id="stat-banker-pct" class="stat-pct"></span>
+      </div>
+      <div class="stat player">
+        <span class="stat-label" data-i18n="stats.player"></span>
+        <span id="stat-player" class="stat-value">0</span>
+        <span id="stat-player-pct" class="stat-pct"></span>
+      </div>
+      <div class="stat tie">
+        <span class="stat-label" data-i18n="stats.tie"></span>
+        <span id="stat-tie" class="stat-value">0</span>
+      </div>
+    </div>
+
+    <!-- Prediction panel -->
+    <div id="prediction-panel" class="prediction-panel hidden">
+      <div class="prediction-header" data-i18n="prediction.title"></div>
+      <div class="prediction-body">
+        <div id="prediction-outcome" class="prediction-outcome"></div>
+        <div id="prediction-confidence" class="prediction-confidence"></div>
+      </div>
+      <div id="prediction-signals" class="prediction-signals"></div>
+    </div>
+
+    <!-- Road tabs -->
+    <div class="road-tabs">
+      <button class="road-tab active" data-road="bigRoad" data-i18n="road.bigRoad"></button>
+      <button class="road-tab" data-road="beadPlate" data-i18n="road.beadPlate"></button>
+      <button class="road-tab" data-road="bigEyeBoy" data-i18n="road.bigEyeBoy"></button>
+      <button class="road-tab" data-road="smallRoad" data-i18n="road.smallRoad"></button>
+      <button class="road-tab" data-road="cockroachPig" data-i18n="road.cockroachPig"></button>
+    </div>
+
+    <!-- Road display canvas -->
+    <div class="road-container">
+      <canvas id="road-canvas" width="720" height="156"></canvas>
+    </div>
+
+    <!-- Manual input (fallback) -->
+    <div class="manual-input">
+      <button id="btn-banker" class="input-btn banker">B</button>
+      <button id="btn-player" class="input-btn player">P</button>
+      <button id="btn-tie" class="input-btn tie">T</button>
+      <button id="btn-undo" class="input-btn undo">↩</button>
+    </div>
+
+    <!-- Ad container (free tier) -->
+    <div id="ad-container"></div>
+
+    <!-- Settings panel (hidden by default) -->
+    <div id="settings-panel" class="settings-panel hidden">
+      <div class="settings-header">
+        <span data-i18n="settings.title"></span>
+        <button id="settings-close" class="icon-btn">✕</button>
+      </div>
+      <div class="settings-body">
+        <label data-i18n="settings.language"></label>
+        <select id="language-select">
+          <option value="en">English</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="zh-CN">简体中文</option>
+        </select>
+
+        <label data-i18n="settings.tier"></label>
+        <div id="tier-display" class="tier-display"></div>
+
+        <!-- License activation -->
+        <label>License Key</label>
+        <div style="display:flex;gap:6px;">
+          <input id="license-input" type="text" placeholder="Enter license key..."
+                 style="flex:1;background:#1a1b23;border:1px solid #2a2b35;color:#e4e4e7;padding:8px;border-radius:6px;font-size:13px;" />
+          <button id="license-activate-btn" style="background:#6366f1;color:white;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;">
+            Activate
+          </button>
+        </div>
+        <div id="license-status" style="font-size:11px;color:#71717a;margin-top:4px;"></div>
+
+        <!-- Pricing links -->
+        <div style="margin-top:12px;padding:12px;background:#1e1f2a;border-radius:8px;border:1px solid #2a2b35;">
+          <div style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:8px;">Upgrade Plans</div>
+          <div id="pricing-links" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

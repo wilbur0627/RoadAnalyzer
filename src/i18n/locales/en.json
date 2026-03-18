@@ -1,0 +1,50 @@
+{
+  "app.title": "RoadAnalyzer",
+  "app.subtitle": "Baccarat Road Analysis",
+
+  "road.bigRoad": "Big Road",
+  "road.beadPlate": "Bead Plate",
+  "road.bigEyeBoy": "Big Eye Boy",
+  "road.smallRoad": "Small Road",
+  "road.cockroachPig": "Cockroach Pig",
+
+  "outcome.banker": "Banker",
+  "outcome.player": "Player",
+  "outcome.tie": "Tie",
+  "outcome.bankerShort": "B",
+  "outcome.playerShort": "P",
+  "outcome.tieShort": "T",
+
+  "prediction.title": "Prediction",
+  "prediction.confidence": "Confidence: {0}%",
+  "prediction.nextOutcome": "Next likely outcome",
+  "prediction.streakAnalysis": "Streak Analysis",
+  "prediction.patternMatch": "Pattern Match",
+  "prediction.derivedConsensus": "Derived Road Consensus",
+  "prediction.noData": "Not enough data for prediction",
+
+  "stats.total": "Total Hands",
+  "stats.banker": "Banker Wins",
+  "stats.player": "Player Wins",
+  "stats.tie": "Ties",
+  "stats.bankerPct": "Banker %",
+  "stats.playerPct": "Player %",
+  "stats.currentStreak": "Current Streak",
+
+  "detection.scanning": "Scanning page...",
+  "detection.found": "Road detected!",
+  "detection.notFound": "No road found on this page",
+  "detection.watching": "Watching for updates...",
+
+  "settings.title": "Settings",
+  "settings.language": "Language",
+  "settings.tier": "Subscription",
+
+  "tier.free": "Free",
+  "tier.adFree": "Ad-Free",
+  "tier.premium": "Premium",
+  "tier.upgrade": "Upgrade",
+
+  "disclaimer.text": "This tool is for entertainment purposes only. It does not constitute betting advice. Gambling involves risk — please play responsibly.",
+  "disclaimer.understand": "I Understand"
+}

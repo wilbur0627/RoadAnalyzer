@@ -1,0 +1,50 @@
+{
+  "app.title": "路子分析器",
+  "app.subtitle": "百家樂路子分析",
+
+  "road.bigRoad": "大路",
+  "road.beadPlate": "珠盤路",
+  "road.bigEyeBoy": "大眼仔路",
+  "road.smallRoad": "小路",
+  "road.cockroachPig": "曱甴路",
+
+  "outcome.banker": "莊",
+  "outcome.player": "閒",
+  "outcome.tie": "和",
+  "outcome.bankerShort": "莊",
+  "outcome.playerShort": "閒",
+  "outcome.tieShort": "和",
+
+  "prediction.title": "預測",
+  "prediction.confidence": "信心度：{0}%",
+  "prediction.nextOutcome": "下一局可能結果",
+  "prediction.streakAnalysis": "連莊/連閒分析",
+  "prediction.patternMatch": "模式匹配",
+  "prediction.derivedConsensus": "衍生路共識",
+  "prediction.noData": "資料不足，無法預測",
+
+  "stats.total": "總手數",
+  "stats.banker": "莊贏",
+  "stats.player": "閒贏",
+  "stats.tie": "和局",
+  "stats.bankerPct": "莊勝率",
+  "stats.playerPct": "閒勝率",
+  "stats.currentStreak": "目前連續",
+
+  "detection.scanning": "正在掃描頁面...",
+  "detection.found": "偵測到路子！",
+  "detection.notFound": "此頁面未發現路子",
+  "detection.watching": "正在監視更新...",
+
+  "settings.title": "設定",
+  "settings.language": "語言",
+  "settings.tier": "訂閱方案",
+
+  "tier.free": "免費版",
+  "tier.adFree": "無廣告版",
+  "tier.premium": "進階版",
+  "tier.upgrade": "升級",
+
+  "disclaimer.text": "本工具僅供娛樂用途，不構成任何投注建議。賭博有風險，請量力而為。",
+  "disclaimer.understand": "我了解"
+}

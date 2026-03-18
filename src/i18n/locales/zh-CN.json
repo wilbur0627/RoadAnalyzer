@@ -1,0 +1,50 @@
+{
+  "app.title": "路子分析器",
+  "app.subtitle": "百家乐路子分析",
+
+  "road.bigRoad": "大路",
+  "road.beadPlate": "珠盘路",
+  "road.bigEyeBoy": "大眼仔路",
+  "road.smallRoad": "小路",
+  "road.cockroachPig": "蟑螂路",
+
+  "outcome.banker": "庄",
+  "outcome.player": "闲",
+  "outcome.tie": "和",
+  "outcome.bankerShort": "庄",
+  "outcome.playerShort": "闲",
+  "outcome.tieShort": "和",
+
+  "prediction.title": "预测",
+  "prediction.confidence": "信心度：{0}%",
+  "prediction.nextOutcome": "下一局可能结果",
+  "prediction.streakAnalysis": "连庄/连闲分析",
+  "prediction.patternMatch": "模式匹配",
+  "prediction.derivedConsensus": "衍生路共识",
+  "prediction.noData": "数据不足，无法预测",
+
+  "stats.total": "总手数",
+  "stats.banker": "庄赢",
+  "stats.player": "闲赢",
+  "stats.tie": "和局",
+  "stats.bankerPct": "庄胜率",
+  "stats.playerPct": "闲胜率",
+  "stats.currentStreak": "当前连续",
+
+  "detection.scanning": "正在扫描页面...",
+  "detection.found": "检测到路子！",
+  "detection.notFound": "此页面未发现路子",
+  "detection.watching": "正在监视更新...",
+
+  "settings.title": "设置",
+  "settings.language": "语言",
+  "settings.tier": "订阅方案",
+
+  "tier.free": "免费版",
+  "tier.adFree": "无广告版",
+  "tier.premium": "进阶版",
+  "tier.upgrade": "升级",
+
+  "disclaimer.text": "本工具仅供娱乐用途，不构成任何投注建议。赌博有风险，请量力而为。",
+  "disclaimer.understand": "我了解"
+}
