@@ -8,14 +8,14 @@ const LEMON_CONFIG = {
   /** LemonSqueezy API base URL */
   apiUrl: 'https://api.lemonsqueezy.com/v1',
   /** Your store slug */
-  storeSlug: 'YOUR_STORE_SLUG', // TODO: Replace
+  storeSlug: 'wbglot',
   /** Checkout URLs for each tier (from LemonSqueezy product page) */
   checkoutUrls: {
-    [Tier.AD_FREE]: 'https://YOUR_STORE.lemonsqueezy.com/checkout/buy/AD_FREE_VARIANT_ID',
-    [Tier.PREMIUM]: 'https://YOUR_STORE.lemonsqueezy.com/checkout/buy/PREMIUM_VARIANT_ID',
+    [Tier.AD_FREE]: 'https://wbglot.lemonsqueezy.com/checkout/buy/2d270a7b-c1a6-4d67-bffb-1bb702dbf85c',
+    [Tier.PREMIUM]: 'https://wbglot.lemonsqueezy.com/checkout/buy/a648ed50-a12d-4c95-9322-106756d3ba19',
   },
   /** LemonSqueezy customer portal URL */
-  portalUrl: 'https://YOUR_STORE.lemonsqueezy.com/billing',
+  portalUrl: 'https://wbglot.lemonsqueezy.com/billing',
   /** Cache TTL in milliseconds (24 hours) */
   cacheTTL: 24 * 60 * 60 * 1000,
 };
