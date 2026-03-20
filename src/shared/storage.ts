@@ -1,4 +1,4 @@
-import { STORAGE_KEYS, Tier } from './constants';
+import { STORAGE_KEYS, Tier, RoadRegion } from './constants';
 import { GameResult } from '../roads/types';
 
 /** Get user's current tier */
@@ -44,4 +44,23 @@ export async function loadGameHistory(): Promise<GameResult[]> {
   } catch {
     return [];
   }
+}
+
+/** Get saved road region */
+export async function getSavedRegion(): Promise<RoadRegion | null> {
+  try {
+    const data = await chrome.storage.sync.get(STORAGE_KEYS.ROAD_REGION);
+    const region = data[STORAGE_KEYS.ROAD_REGION];
+    if (region && region.x != null && region.y != null && region.w > 0 && region.h > 0) {
+      return region as RoadRegion;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Save road region */
+export async function saveRegion(region: RoadRegion): Promise<void> {
+  await chrome.storage.sync.set({ [STORAGE_KEYS.ROAD_REGION]: region });
 }

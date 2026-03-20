@@ -35,6 +35,15 @@
   "detection.found": "偵測到路子！",
   "detection.notFound": "此頁面未發現路子",
   "detection.watching": "正在監視更新...",
+  "detection.serverOffline": "伺服器離線",
+
+  "server.ready": "伺服器：就緒",
+  "server.onlineSelectRegion": "伺服器：已連線（請選取區域）",
+  "server.offline": "伺服器：離線",
+  "server.checking": "伺服器：檢查中...",
+
+  "capture.selectRegion": "選取區域（頁面上）",
+  "upload.hint": "上傳或貼上 (Ctrl+V) 大路截圖",
 
   "settings.title": "設定",
   "settings.language": "語言",

@@ -26,6 +26,16 @@
     "scripting",
     "alarms"
   ],
+  "host_permissions": [
+    "http://localhost:18920/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }

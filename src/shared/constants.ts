@@ -5,7 +5,19 @@ export const STORAGE_KEYS = {
   LICENSE_KEY: 'licenseKey',
   GAME_HISTORY: 'gameHistory',
   DISCLAIMER_ACCEPTED: 'disclaimerAccepted',
+  ROAD_REGION: 'roadRegion',
 } as const;
+
+/** Road region selection — pixel coordinates relative to viewport */
+export interface RoadRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Server configuration */
+export const SERVER_URL = 'http://localhost:18920';
 
 /** User tier levels */
 export enum Tier {

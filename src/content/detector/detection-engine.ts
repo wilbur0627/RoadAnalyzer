@@ -8,10 +8,14 @@ import '../site-profiles/profiles/common-casinos';
 
 export type DetectionStatus = 'idle' | 'scanning' | 'found' | 'not_found' | 'watching';
 
+/** Convert results to a comparable string key */
+function resultsToSequence(results: GameResult[]): string {
+  return results.map((r) => r.outcome).join('');
+}
+
 export interface DetectionResult {
   results: GameResult[];
   source: 'dom' | 'canvas' | 'profile';
-
   element: Element | null;
 }
 
@@ -19,13 +23,16 @@ type StatusCallback = (status: DetectionStatus) => void;
 type ResultCallback = (result: DetectionResult) => void;
 
 /**
- * Detection Engine — orchestrates multiple detection strategies
- * and watches for live updates.
+ * Detection Engine — orchestrates DOM/Canvas detection strategies
+ * and watches for live updates via MutationObserver.
+ *
+ * Screenshot-based analysis is handled separately in the popup
+ * via manual user upload.
  */
 export class DetectionEngine {
   private observer: MutationObserver | null = null;
   private status: DetectionStatus = 'idle';
-  private lastResultCount = 0;
+  private lastSequence = '';
   private detectedElement: Element | null = null;
   private onStatusChange: StatusCallback;
   private onResults: ResultCallback;
@@ -36,7 +43,6 @@ export class DetectionEngine {
   constructor(onStatusChange: StatusCallback, onResults: ResultCallback) {
     this.onStatusChange = onStatusChange;
     this.onResults = onResults;
-    // Check for site-specific profile
     this.siteProfile = findProfile(window.location.hostname);
   }
 
@@ -45,7 +51,6 @@ export class DetectionEngine {
     this.setStatus('scanning');
     this.detect();
 
-    // Re-scan periodically in case the page loads dynamically
     this.pollInterval = window.setInterval(() => {
       if (this.status !== 'watching') {
         this.detect();
@@ -70,7 +75,7 @@ export class DetectionEngine {
 
   /** Run detection once */
   private detect(): void {
-    // Strategy 0: Site-specific profile (highest priority)
+    // Strategy 1: Site-specific profile
     if (this.siteProfile) {
       const profileResults = this.siteProfile.extract();
       if (profileResults && profileResults.length > 0) {
@@ -79,14 +84,14 @@ export class DetectionEngine {
       }
     }
 
-    // Strategy 1: DOM scanning
+    // Strategy 2: DOM scanning
     const domResults = scanDOM();
     if (domResults && domResults.length > 0) {
       this.handleDetection(domResults, 'dom');
       return;
     }
 
-    // Strategy 2: Canvas scanning
+    // Strategy 3: Canvas scanning
     const canvasResults = scanCanvases();
     if (canvasResults && canvasResults.length > 0) {
       this.handleDetection(canvasResults, 'canvas');
@@ -103,16 +108,12 @@ export class DetectionEngine {
     results: GameResult[],
     source: 'dom' | 'canvas' | 'profile',
   ): void {
-    this.lastResultCount = results.length;
+    const seq = resultsToSequence(results);
+    if (seq === this.lastSequence) return; // No change
+
+    this.lastSequence = seq;
     this.setStatus('found');
-
-    this.onResults({
-      results,
-      source,
-      element: this.detectedElement,
-    });
-
-    // Start watching for updates
+    this.onResults({ results, source, element: this.detectedElement });
     this.startWatching();
   }
 
@@ -122,21 +123,18 @@ export class DetectionEngine {
 
     this.setStatus('watching');
 
-    // Clear polling since we now have an observer
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
 
     this.observer = new MutationObserver(() => {
-      // Debounce: wait 500ms after last mutation before re-scanning
       if (this.debounceTimer) clearTimeout(this.debounceTimer);
       this.debounceTimer = window.setTimeout(() => {
         this.debouncedRescan();
       }, 500);
     });
 
-    // Observe the entire document for changes
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
@@ -148,16 +146,20 @@ export class DetectionEngine {
   /** Re-scan after debounced mutation */
   private debouncedRescan(): void {
     const domResults = scanDOM();
-    if (domResults && domResults.length > this.lastResultCount) {
-      this.lastResultCount = domResults.length;
-      this.onResults({ results: domResults, source: 'dom', element: this.detectedElement });
-      return;
+    if (domResults && domResults.length > 0) {
+      const seq = resultsToSequence(domResults);
+      if (seq !== this.lastSequence) {
+        this.handleDetection(domResults, 'dom');
+        return;
+      }
     }
 
     const canvasResults = scanCanvases();
-    if (canvasResults && canvasResults.length > this.lastResultCount) {
-      this.lastResultCount = canvasResults.length;
-      this.onResults({ results: canvasResults, source: 'canvas', element: this.detectedElement });
+    if (canvasResults && canvasResults.length > 0) {
+      const seq = resultsToSequence(canvasResults);
+      if (seq !== this.lastSequence) {
+        this.handleDetection(canvasResults, 'canvas');
+      }
     }
   }
 

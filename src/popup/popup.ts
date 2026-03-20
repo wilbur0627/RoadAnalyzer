@@ -2,50 +2,46 @@ import { initI18n, t, getLocale, setLocale, Locale } from '../i18n/i18n';
 import { RoadManager } from '../roads/road-manager';
 import { predict, Prediction, calculateStats } from '../roads/prediction';
 import { renderRoad } from './components/road-renderer';
-import { RoadAnalysis, GameResult } from '../roads/types';
+import { RoadAnalysis, GameResult, Outcome } from '../roads/types';
 import { Tier, STORAGE_KEYS } from '../shared/constants';
 import { getTier, isDisclaimerAccepted, acceptDisclaimer } from '../shared/storage';
 import { initAds, removeAds } from '../monetization/ads';
 import { activateLicense, getPaymentLink } from '../monetization/license';
-import { el, clearChildren, safeNumber, validateGameResults } from '../shared/sanitize';
+import { el, clearChildren, safeNumber } from '../shared/sanitize';
 
 // State
 const roadManager = new RoadManager();
 let currentRoad: keyof RoadAnalysis = 'bigRoad';
 let currentTier: Tier = Tier.FREE;
 let analysis: RoadAnalysis | null = null;
+let serverAvailable = false;
+let activeTabId: number | null = null;
 
-// DOM elements
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
 async function init() {
   await initI18n();
   updateAllTexts();
 
-  // Check disclaimer
   const disclaimerOk = await isDisclaimerAccepted();
-  if (!disclaimerOk) {
-    showDisclaimer();
-  }
+  if (!disclaimerOk) showDisclaimer();
 
-  // Load tier
   currentTier = await getTier();
-
   setupEventListeners();
   initAds($('#ad-container'));
 
-  // Try to get results from content script
+  // Get active tab
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_STATE' });
-      if (response?.results) {
-        roadManager.setResults(response.results);
-      }
-    }
-  } catch {
-    // Content script not available
-  }
+    if (tab?.id) activeTabId = tab.id;
+  } catch { /* ignore */ }
+
+  // Check server health
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: 'SERVER_HEALTH' });
+    serverAvailable = resp?.ok ?? false;
+  } catch { /* ignore */ }
+  updateServerStatus();
 
   updateDisplay();
 }
@@ -55,22 +51,39 @@ function showDisclaimer() {
   overlay.classList.remove('hidden');
   $('#disclaimer-btn').addEventListener('click', async () => {
     overlay.classList.add('hidden');
-    try {
-      await acceptDisclaimer();
-    } catch { /* dev mode */ }
+    try { await acceptDisclaimer(); } catch { /* dev mode */ }
   });
 }
 
+function showStatus(text: string, type: 'error' | 'info' | 'success') {
+  const msgEl = $('#status-message');
+  msgEl.textContent = text;
+  msgEl.className = `status-message ${type}`;
+}
+
+// ── Event listeners ──
+
 function setupEventListeners() {
-  // Manual input buttons
-  $('#btn-banker').addEventListener('click', () => addResult('B'));
-  $('#btn-player').addEventListener('click', () => addResult('P'));
-  $('#btn-tie').addEventListener('click', () => addResult('T'));
-  $('#btn-undo').addEventListener('click', () => {
-    const results = roadManager.getResults();
-    results.pop();
-    roadManager.setResults(results);
-    updateDisplay();
+  // Select Region — inject script directly into the active tab
+  $('#btn-select-region').addEventListener('click', async () => {
+    if (!activeTabId) {
+      showStatus('No active tab found.', 'error');
+      return;
+    }
+
+    try {
+      // Inject region selector directly via scripting API
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTabId },
+        func: injectRegionSelector,
+      });
+    } catch (e) {
+      showStatus(`Cannot inject on this page: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      return;
+    }
+
+    // Close popup so user can interact with page
+    window.close();
   });
 
   // Road tabs
@@ -92,7 +105,7 @@ function setupEventListeners() {
     $('#settings-panel').classList.add('hidden');
   });
 
-  // Language selector
+  // Language
   const langSelect = $<HTMLSelectElement>('#language-select');
   langSelect.value = getLocale();
   langSelect.addEventListener('change', async () => {
@@ -100,62 +113,41 @@ function setupEventListeners() {
     updateAllTexts();
   });
 
-  // License activation
+  // License
   $('#license-activate-btn').addEventListener('click', async () => {
     const input = $<HTMLInputElement>('#license-input');
     const statusEl = $('#license-status');
     const key = input.value.trim();
-    if (!key) {
-      statusEl.textContent = 'Please enter a license key';
-      statusEl.style.color = '#ef4444';
-      return;
-    }
-    statusEl.textContent = 'Validating...';
-    statusEl.style.color = '#71717a';
+    if (!key) { statusEl.textContent = 'Please enter a license key'; statusEl.style.color = '#ef4444'; return; }
+    statusEl.textContent = 'Validating...'; statusEl.style.color = '#71717a';
     try {
       const result = await activateLicense(key);
       if (result.success) {
         currentTier = result.tier;
-        statusEl.textContent = result.message;
-        statusEl.style.color = '#22c55e';
-        updateTierDisplay();
-        removeAds();
-        updateDisplay();
-      } else {
-        statusEl.textContent = result.message;
-        statusEl.style.color = '#ef4444';
-      }
-    } catch {
-      statusEl.textContent = 'Network error. Please try again.';
-      statusEl.style.color = '#ef4444';
-    }
+        statusEl.textContent = result.message; statusEl.style.color = '#22c55e';
+        updateTierDisplay(); removeAds(); updateDisplay();
+      } else { statusEl.textContent = result.message; statusEl.style.color = '#ef4444'; }
+    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = '#ef4444'; }
   });
 
-  // Pricing links — use safe DOM construction
+  // Pricing
   const pricingEl = $('#pricing-links');
   clearChildren(pricingEl);
-
-  const createPricingLink = (tier: Tier.AD_FREE | Tier.PREMIUM, label: string, price: string, color: string, bg: string) => {
-    const a = el('a', {
-      target: '_blank',
-      style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:${bg};border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;`,
-    });
+  const mkLink = (tier: Tier.AD_FREE | Tier.PREMIUM, label: string, price: string, color: string, bg: string) => {
+    const a = el('a', { target: '_blank', style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:${bg};border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;` });
     (a as HTMLAnchorElement).href = getPaymentLink(tier);
     a.appendChild(el('span', { style: 'font-size:12px;' }, label));
     a.appendChild(el('span', { style: `font-size:12px;color:${color};font-weight:600;` }, price));
     return a;
   };
+  pricingEl.appendChild(mkLink(Tier.AD_FREE, t('tier.adFree'), '$4.99/mo', '#6366f1', '#1a1b23'));
+  pricingEl.appendChild(mkLink(Tier.PREMIUM, t('tier.premium'), '$9.99/mo', '#eab308', 'rgba(234,179,8,0.05)'));
 
-  pricingEl.appendChild(createPricingLink(Tier.AD_FREE, t('tier.adFree'), '$4.99/mo', '#6366f1', '#1a1b23'));
-  pricingEl.appendChild(createPricingLink(Tier.PREMIUM, t('tier.premium'), '$9.99/mo', '#eab308', 'rgba(234,179,8,0.05)'));
-
-  // Listen for messages from content script (with validation)
+  // Listen for results from content script
   try {
     chrome.runtime.onMessage.addListener((msg, sender) => {
-      // Only accept messages from our own extension
       if (sender.id !== chrome.runtime.id) return;
-
-      if (msg.type === 'RESULTS_DETECTED' && validateGameResults(msg.results)) {
+      if (msg.type === 'RESULTS_DETECTED' && Array.isArray(msg.results)) {
         roadManager.setResults(msg.results);
         updateDisplay();
         setDetectionStatus('found');
@@ -163,15 +155,104 @@ function setupEventListeners() {
         setDetectionStatus(msg.status);
       }
     });
-  } catch {
-    // Not in extension context
-  }
+  } catch { /* not in extension context */ }
 }
 
-function addResult(outcome: 'B' | 'P' | 'T') {
-  roadManager.addResult({ outcome });
-  updateDisplay();
+/**
+ * This function is injected directly into the active tab via chrome.scripting.executeScript.
+ * It must be self-contained — no imports, no closures over popup scope.
+ */
+function injectRegionSelector() {
+  // Prevent duplicate injection
+  if (document.getElementById('__ra_region_overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = '__ra_region_overlay';
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', zIndex: '2147483647',
+    cursor: 'crosshair', background: 'rgba(0,0,0,0.3)',
+  });
+
+  const banner = document.createElement('div');
+  Object.assign(banner.style, {
+    position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '10px 20px',
+    borderRadius: '8px', fontSize: '14px', fontFamily: 'system-ui, sans-serif',
+    zIndex: '2147483647', pointerEvents: 'none', whiteSpace: 'nowrap',
+  });
+  banner.textContent = '拖曳選取路子區域 — ESC 取消';
+  overlay.appendChild(banner);
+
+  const box = document.createElement('div');
+  Object.assign(box.style, {
+    position: 'fixed', border: '2px dashed #6366f1',
+    background: 'rgba(99,102,241,0.15)', borderRadius: '4px',
+    display: 'none', pointerEvents: 'none',
+  });
+  overlay.appendChild(box);
+
+  let startX = 0, startY = 0, dragging = false;
+
+  function cleanup() {
+    overlay.remove();
+    document.removeEventListener('keydown', onKeyDown);
+  }
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') cleanup();
+  }
+
+  overlay.addEventListener('mousedown', (e) => {
+    startX = e.clientX; startY = e.clientY; dragging = true;
+    box.style.display = 'block';
+    box.style.left = `${startX}px`; box.style.top = `${startY}px`;
+    box.style.width = '0'; box.style.height = '0';
+  });
+
+  overlay.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const x = Math.min(startX, e.clientX), y = Math.min(startY, e.clientY);
+    const w = Math.abs(e.clientX - startX), h = Math.abs(e.clientY - startY);
+    box.style.left = `${x}px`; box.style.top = `${y}px`;
+    box.style.width = `${w}px`; box.style.height = `${h}px`;
+  });
+
+  overlay.addEventListener('mouseup', (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const x = Math.min(startX, e.clientX), y = Math.min(startY, e.clientY);
+    const w = Math.abs(e.clientX - startX), h = Math.abs(e.clientY - startY);
+    cleanup();
+
+    if (w < 20 || h < 20) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const region = {
+      x: Math.round(x * dpr), y: Math.round(y * dpr),
+      w: Math.round(w * dpr), h: Math.round(h * dpr),
+    };
+
+    // Save to chrome.storage.sync
+    chrome.storage.sync.set({ roadRegion: region });
+
+    // Show confirmation
+    const toast = document.createElement('div');
+    Object.assign(toast.style, {
+      position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+      background: '#22c55e', color: '#fff', padding: '10px 20px',
+      borderRadius: '8px', fontSize: '14px', fontFamily: 'system-ui, sans-serif',
+      zIndex: '2147483647',
+    });
+    toast.textContent = `Region saved: ${w}×${h}px`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  });
+
+  document.addEventListener('keydown', onKeyDown);
+  document.body.appendChild(overlay);
 }
+
+// ── Display updates ──
 
 function updateDisplay() {
   analysis = roadManager.analyze();
@@ -183,7 +264,6 @@ function updateDisplay() {
 function updateStats() {
   if (!analysis) return;
   const stats = calculateStats(roadManager.getResults(), analysis.columns);
-
   $('#stat-total').textContent = String(stats.total);
   $('#stat-banker').textContent = String(stats.banker);
   $('#stat-player').textContent = String(stats.player);
@@ -194,23 +274,9 @@ function updateStats() {
 
 function updatePrediction() {
   if (!analysis) return;
-
-  const pred = predict(
-    roadManager.getResults(),
-    analysis.columns,
-    analysis.bigEyeBoy,
-    analysis.smallRoad,
-    analysis.cockroachPig,
-    currentTier === Tier.PREMIUM,
-  );
-
+  const pred = predict(roadManager.getResults(), analysis.columns, analysis.bigEyeBoy, analysis.smallRoad, analysis.cockroachPig, currentTier === Tier.PREMIUM);
   const panel = $('#prediction-panel');
-
-  if (!pred) {
-    panel.classList.add('hidden');
-    return;
-  }
-
+  if (!pred) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
 
   const outcomeEl = $('#prediction-outcome');
@@ -219,14 +285,10 @@ function updatePrediction() {
 
   const confEl = $('#prediction-confidence');
   clearChildren(confEl);
-  const confText = el('div', { style: 'font-size:13px;font-weight:600;color:#e4e4e7;' }, t('prediction.confidence', safeNumber(pred.confidence)));
-  const confBar = el('div', { class: 'confidence-bar' });
-  const confFill = el('div', {
-    class: `confidence-fill ${pred.outcome === 'B' ? 'banker' : 'player'}`,
-    style: `width:${safeNumber(pred.confidence)}%`,
-  });
-  confBar.appendChild(confFill);
-  confEl.append(confText, confBar);
+  confEl.append(
+    el('div', { style: 'font-size:13px;font-weight:600;color:#e4e4e7;' }, t('prediction.confidence', safeNumber(pred.confidence))),
+    (() => { const bar = el('div', { class: 'confidence-bar' }); bar.appendChild(el('div', { class: `confidence-fill ${pred.outcome === 'B' ? 'banker' : 'player'}`, style: `width:${safeNumber(pred.confidence)}%` })); return bar; })(),
+  );
 
   const signalsEl = $('#prediction-signals');
   clearChildren(signalsEl);
@@ -240,62 +302,47 @@ function updatePrediction() {
 
 function renderCurrentRoad() {
   if (!analysis) return;
-
   const canvas = $<HTMLCanvasElement>('#road-canvas');
   const isDerived = ['bigEyeBoy', 'smallRoad', 'cockroachPig'].includes(currentRoad);
   const grid = analysis[currentRoad];
-
-  if (Array.isArray(grid)) {
-    renderRoad(canvas, grid as any, { isDerived });
-  }
+  if (Array.isArray(grid)) renderRoad(canvas, grid as any, { isDerived });
 }
 
 function setDetectionStatus(status: string) {
   const badge = $('#detection-status');
-  const statusMap: Record<string, string> = {
-    scanning: t('detection.scanning'),
-    found: t('detection.found'),
-    not_found: t('detection.notFound'),
-    watching: t('detection.watching'),
+  const map: Record<string, string> = {
+    scanning: t('detection.scanning'), found: t('detection.found'),
+    not_found: t('detection.notFound'), watching: t('detection.watching'),
   };
-  badge.textContent = statusMap[status] ?? '';
-  badge.className = `status-badge ${status === 'found' || status === 'watching' ? 'active' : ''}`;
+  badge.textContent = map[status] ?? '';
+  badge.className = `status-badge ${status === 'found' ? 'active' : ''}`;
+}
+
+function updateServerStatus() {
+  const dot = $('#server-dot');
+  const label = $('#server-label');
+  dot.className = `server-dot ${serverAvailable ? 'online' : 'offline'}`;
+  label.textContent = serverAvailable ? t('server.ready') : t('server.offline');
 }
 
 function updateTierDisplay() {
   const tierEl = $('#tier-display');
-  const tierNames: Record<Tier, string> = {
-    [Tier.FREE]: t('tier.free'),
-    [Tier.AD_FREE]: t('tier.adFree'),
-    [Tier.PREMIUM]: t('tier.premium'),
-  };
+  const names: Record<Tier, string> = { [Tier.FREE]: t('tier.free'), [Tier.AD_FREE]: t('tier.adFree'), [Tier.PREMIUM]: t('tier.premium') };
   clearChildren(tierEl);
-  const badge = el('span', { class: `tier-badge ${currentTier}` }, tierNames[currentTier]);
-  tierEl.appendChild(badge);
+  tierEl.appendChild(el('span', { class: `tier-badge ${currentTier}` }, names[currentTier]));
   if (currentTier === Tier.FREE) {
     tierEl.appendChild(document.createElement('br'));
-    const upgradeLink = el('a', { href: '#', style: 'color:#6366f1;font-size:12px;margin-top:8px;display:inline-block;' }, t('tier.upgrade'));
-    tierEl.appendChild(upgradeLink);
+    tierEl.appendChild(el('a', { href: '#', style: 'color:#6366f1;font-size:12px;margin-top:8px;display:inline-block;' }, t('tier.upgrade')));
   }
 }
 
 function updateAllTexts() {
-  // Update all elements with data-i18n attribute
   document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n')!;
-    el.textContent = t(key);
+    el.textContent = t(el.getAttribute('data-i18n')!);
   });
-
-  // Update specific elements
   $('#app-title').textContent = t('app.title');
   $('#disclaimer-text').textContent = t('disclaimer.text');
   $('#disclaimer-btn').textContent = t('disclaimer.understand');
-
-  // Update manual input buttons with localized labels
-  $('#btn-banker').textContent = t('outcome.bankerShort');
-  $('#btn-player').textContent = t('outcome.playerShort');
-  $('#btn-tie').textContent = t('outcome.tieShort');
 }
 
-// Start
 init();

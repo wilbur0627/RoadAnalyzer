@@ -72,12 +72,14 @@
       <canvas id="road-canvas" width="720" height="156"></canvas>
     </div>
 
-    <!-- Manual input (fallback) -->
-    <div class="manual-input">
-      <button id="btn-banker" class="input-btn banker">B</button>
-      <button id="btn-player" class="input-btn player">P</button>
-      <button id="btn-tie" class="input-btn tie">T</button>
-      <button id="btn-undo" class="input-btn undo">↩</button>
+    <!-- Server status + controls -->
+    <div class="controls-area">
+      <div class="server-status">
+        <span id="server-dot" class="server-dot"></span>
+        <span id="server-label" data-i18n="server.checking">Server: checking...</span>
+      </div>
+      <button id="btn-select-region" class="select-region-btn" data-i18n="capture.selectRegion">Select Region</button>
+      <div id="status-message" class="status-message hidden"></div>
     </div>
 
     <!-- Ad container (free tier) -->

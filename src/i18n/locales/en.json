@@ -35,6 +35,15 @@
   "detection.found": "Road detected!",
   "detection.notFound": "No road found on this page",
   "detection.watching": "Watching for updates...",
+  "detection.serverOffline": "Server Offline",
+
+  "server.ready": "Server: ready",
+  "server.onlineSelectRegion": "Server: online (select region)",
+  "server.offline": "Server: offline",
+  "server.checking": "Server: checking...",
+
+  "capture.selectRegion": "Select Region (on page)",
+  "upload.hint": "Upload or paste (Ctrl+V) a screenshot of the Big Road",
 
   "settings.title": "Settings",
   "settings.language": "Language",

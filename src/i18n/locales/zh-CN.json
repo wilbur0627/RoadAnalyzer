@@ -35,6 +35,15 @@
   "detection.found": "检测到路子！",
   "detection.notFound": "此页面未发现路子",
   "detection.watching": "正在监视更新...",
+  "detection.serverOffline": "服务器离线",
+
+  "server.ready": "服务器：就绪",
+  "server.onlineSelectRegion": "服务器：已连接（请选取区域）",
+  "server.offline": "服务器：离线",
+  "server.checking": "服务器：检查中...",
+
+  "capture.selectRegion": "选取区域（页面上）",
+  "upload.hint": "上传或粘贴 (Ctrl+V) 大路截图",
 
   "settings.title": "设置",
   "settings.language": "语言",
