@@ -235,6 +235,9 @@ function injectRegionSelector() {
     // Save to chrome.storage.sync
     chrome.storage.sync.set({ roadRegion: region });
 
+    // Trigger screenshot capture + analysis
+    chrome.runtime.sendMessage({ type: 'CAPTURE_AND_ANALYZE', region });
+
     // Show confirmation
     const toast = document.createElement('div');
     Object.assign(toast.style, {
