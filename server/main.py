@@ -3,8 +3,8 @@ RoadAnalyzer Server
 FastAPI server that receives screenshots from the Chrome extension
 and returns detected baccarat road patterns.
 
-Supports both local development and cloud deployment.
-Set environment variable ROAD_ANALYZER_ENV=production for cloud mode.
+Supports both local development and cloud deployment (Vercel).
+Production mode is auto-detected via VERCEL env var, or set ROAD_ANALYZER_ENV=production.
 """
 
 from fastapi import FastAPI, File, UploadFile, Form
@@ -16,7 +16,10 @@ import os
 
 from road_detector import analyze_image
 
-IS_PRODUCTION = os.environ.get("ROAD_ANALYZER_ENV") == "production"
+IS_PRODUCTION = (
+    os.environ.get("VERCEL") == "1"
+    or os.environ.get("ROAD_ANALYZER_ENV") == "production"
+)
 
 app = FastAPI(title="RoadAnalyzer Server", version="1.0.0")
 
