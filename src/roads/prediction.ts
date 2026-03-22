@@ -1,4 +1,5 @@
 import { GameResult, BigRoadColumn, DerivedRoadGrid, Outcome } from './types';
+import { t } from '../i18n/i18n';
 
 export interface Prediction {
   outcome: 'B' | 'P';
@@ -174,14 +175,14 @@ function analyzeStreak(columns: BigRoadColumn[]): PredictionSignal | null {
       name: 'streak',
       outcome: reverseOutcome,
       weight: 0.3,
-      description: `Streak of ${streakLen} exceeds avg (${avgStreak.toFixed(1)})`,
+      description: t('signal.streakExceedsAvg', streakLen, avgStreak.toFixed(1)),
     };
   } else {
     return {
       name: 'streak',
       outcome: lastCol.outcome,
       weight: 0.25,
-      description: `Streak of ${streakLen}, avg is ${avgStreak.toFixed(1)}`,
+      description: t('signal.streakWithAvg', streakLen, avgStreak.toFixed(1)),
     };
   }
 }
@@ -199,14 +200,14 @@ function analyzeFrequency(nonTieResults: GameResult[]): PredictionSignal | null 
       name: 'frequency',
       outcome: 'B',
       weight: 0.15,
-      description: `Banker at ${(bankerPct * 100).toFixed(0)}% in last ${recent.length}`,
+      description: t('signal.bankerPctRecent', (bankerPct * 100).toFixed(0), recent.length),
     };
   } else if (bankerPct < 0.4) {
     return {
       name: 'frequency',
       outcome: 'P',
       weight: 0.15,
-      description: `Player at ${((1 - bankerPct) * 100).toFixed(0)}% in last ${recent.length}`,
+      description: t('signal.playerPctRecent', ((1 - bankerPct) * 100).toFixed(0), recent.length),
     };
   }
 
@@ -230,7 +231,7 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
       name: 'pattern_pingpong',
       outcome: lastFour[3].outcome === 'B' ? 'P' : 'B',
       weight: 0.35,
-      description: 'Ping-pong pattern (BPBP)',
+      description: t('signal.pingPong'),
     });
   }
 
@@ -242,7 +243,7 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
       name: 'pattern_double',
       outcome: lastFour[3].outcome === 'B' ? 'P' : 'B',
       weight: 0.3,
-      description: 'Double pattern (BB-PP-BB-PP)',
+      description: t('signal.double'),
     });
   }
 
@@ -255,7 +256,7 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
         name: 'pattern_triple',
         outcome: lastFour[3].outcome === 'B' ? 'P' : 'B',
         weight: 0.3,
-        description: 'Triple pattern (BBB-PPP-BBB)',
+        description: t('signal.triple'),
       });
     }
   }
@@ -269,7 +270,7 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
         name: 'pattern_increasing',
         outcome: lastThree[2].outcome,
         weight: 0.2,
-        description: `Increasing streaks (${lengths.join('→')})`,
+        description: t('signal.increasing', lengths.join('→')),
       });
     }
   }
@@ -286,7 +287,7 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
         name: 'pattern_zigzag',
         outcome: lastFive[4].outcome,
         weight: 0.2,
-        description: `Zigzag lengths (${lens.join(',')})`,
+        description: t('signal.zigzag', lens.join(',')),
       });
     }
   }
@@ -336,7 +337,7 @@ function analyzeDerivedConsensus(
       name: 'derived_consensus',
       outcome: lastCol.outcome,
       weight: 0.35,
-      description: `${colors.length}/3 derived roads: consistent → continue ${lastCol.outcome}`,
+      description: t('signal.derivedConsistent', colors.length, lastCol.outcome === 'B' ? t('outcome.bankerShort') : t('outcome.playerShort')),
     };
   } else if (blueCount === colors.length) {
     // All blue = chaos → predict streak breaks
@@ -345,7 +346,7 @@ function analyzeDerivedConsensus(
       name: 'derived_consensus',
       outcome: reverse,
       weight: 0.3,
-      description: `${colors.length}/3 derived roads: chaotic → break to ${reverse}`,
+      description: t('signal.derivedChaotic', colors.length, reverse === 'B' ? t('outcome.bankerShort') : t('outcome.playerShort')),
     };
   }
 
@@ -377,7 +378,7 @@ function analyzeRhythm(columns: BigRoadColumn[]): PredictionSignal | null {
       name: 'rhythm',
       outcome: predictedOutcome,
       weight: 0.25,
-      description: `Repeating rhythm: [${lengths.join(',')}] period-2`,
+      description: t('signal.rhythm', lengths.join(','), 2),
     };
   }
 
@@ -394,7 +395,7 @@ function analyzeRhythm(columns: BigRoadColumn[]): PredictionSignal | null {
         name: 'rhythm',
         outcome: lastCol.outcome === 'B' ? 'P' : 'B',
         weight: 0.2,
-        description: `Repeating rhythm: [${lengths.join(',')}] period-3`,
+        description: t('signal.rhythm', lengths.join(','), 3),
       };
     }
   }

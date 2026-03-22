@@ -79,7 +79,14 @@
         <span id="server-label" data-i18n="server.checking">Server: checking...</span>
       </div>
       <button id="btn-select-region" class="select-region-btn" data-i18n="capture.selectRegion">Select Region</button>
+      <div id="region-hint" class="region-hint" data-i18n="capture.regionHint"></div>
       <div id="status-message" class="status-message hidden"></div>
+    </div>
+
+    <!-- Debug detection preview -->
+    <div id="debug-preview" class="debug-preview hidden">
+      <div class="debug-preview-label" data-i18n="detection.preview"></div>
+      <img id="debug-preview-img" />
     </div>
 
     <!-- Ad container (free tier) -->
@@ -103,20 +110,32 @@
         <div id="tier-display" class="tier-display"></div>
 
         <!-- License activation -->
-        <label>License Key</label>
+        <label data-i18n="settings.licenseKey"></label>
+        <div data-i18n="settings.licenseDesc" style="font-size:10px;color:#71717a;margin-bottom:4px;"></div>
         <div style="display:flex;gap:6px;">
-          <input id="license-input" type="text" placeholder="Enter license key..."
+          <input id="license-input" type="text" data-i18n-placeholder="settings.enterLicenseKey"
                  style="flex:1;background:#1a1b23;border:1px solid #2a2b35;color:#e4e4e7;padding:8px;border-radius:6px;font-size:13px;" />
-          <button id="license-activate-btn" style="background:#6366f1;color:white;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;">
-            Activate
+          <button id="license-activate-btn" data-i18n="settings.activate" style="background:#6366f1;color:white;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;">
           </button>
         </div>
         <div id="license-status" style="font-size:11px;color:#71717a;margin-top:4px;"></div>
 
         <!-- Pricing links -->
         <div style="margin-top:12px;padding:12px;background:#1e1f2a;border-radius:8px;border:1px solid #2a2b35;">
-          <div style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:8px;">Upgrade Plans</div>
+          <div data-i18n="settings.upgradePlans" style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:8px;"></div>
           <div id="pricing-links" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <!-- Help / Usage instructions -->
+        <div style="margin-top:12px;padding:12px;background:#1e1f2a;border-radius:8px;border:1px solid #2a2b35;">
+          <div data-i18n="help.title" style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:8px;"></div>
+          <div style="font-size:11px;color:#a1a1aa;line-height:1.6;">
+            <div data-i18n="help.step1"></div>
+            <div data-i18n="help.step2"></div>
+            <div data-i18n="help.step3"></div>
+            <div data-i18n="help.step4"></div>
+            <div data-i18n="help.tip" style="margin-top:6px;color:#6366f1;"></div>
+          </div>
         </div>
       </div>
     </div>

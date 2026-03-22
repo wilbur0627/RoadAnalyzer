@@ -118,8 +118,8 @@ function setupEventListeners() {
     const input = $<HTMLInputElement>('#license-input');
     const statusEl = $('#license-status');
     const key = input.value.trim();
-    if (!key) { statusEl.textContent = 'Please enter a license key'; statusEl.style.color = '#ef4444'; return; }
-    statusEl.textContent = 'Validating...'; statusEl.style.color = '#71717a';
+    if (!key) { statusEl.textContent = t('license.enterKey'); statusEl.style.color = '#ef4444'; return; }
+    statusEl.textContent = t('license.validating'); statusEl.style.color = '#71717a';
     try {
       const result = await activateLicense(key);
       if (result.success) {
@@ -127,21 +127,11 @@ function setupEventListeners() {
         statusEl.textContent = result.message; statusEl.style.color = '#22c55e';
         updateTierDisplay(); removeAds(); updateDisplay();
       } else { statusEl.textContent = result.message; statusEl.style.color = '#ef4444'; }
-    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = '#ef4444'; }
+    } catch { statusEl.textContent = t('license.networkError'); statusEl.style.color = '#ef4444'; }
   });
 
-  // Pricing
-  const pricingEl = $('#pricing-links');
-  clearChildren(pricingEl);
-  const mkLink = (tier: Tier.AD_FREE | Tier.PREMIUM, label: string, price: string, color: string, bg: string) => {
-    const a = el('a', { target: '_blank', style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:${bg};border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;` });
-    (a as HTMLAnchorElement).href = getPaymentLink(tier);
-    a.appendChild(el('span', { style: 'font-size:12px;' }, label));
-    a.appendChild(el('span', { style: `font-size:12px;color:${color};font-weight:600;` }, price));
-    return a;
-  };
-  pricingEl.appendChild(mkLink(Tier.AD_FREE, t('tier.adFree'), '$4.99/mo', '#6366f1', '#1a1b23'));
-  pricingEl.appendChild(mkLink(Tier.PREMIUM, t('tier.premium'), '$9.99/mo', '#eab308', 'rgba(234,179,8,0.05)'));
+  // Pricing (initial render)
+  updatePricingLinks();
 
   // Listen for results from content script
   try {
@@ -151,6 +141,7 @@ function setupEventListeners() {
         roadManager.setResults(msg.results);
         updateDisplay();
         setDetectionStatus('found');
+        updateDebugPreview(msg.debugImage ?? null);
       } else if (msg.type === 'DETECTION_STATUS' && typeof msg.status === 'string') {
         setDetectionStatus(msg.status);
       }
@@ -311,6 +302,17 @@ function renderCurrentRoad() {
   if (Array.isArray(grid)) renderRoad(canvas, grid as any, { isDerived });
 }
 
+function updateDebugPreview(debugImage: string | null) {
+  const container = $('#debug-preview');
+  const img = $<HTMLImageElement>('#debug-preview-img');
+  if (!debugImage) {
+    container.classList.add('hidden');
+    return;
+  }
+  img.src = debugImage;
+  container.classList.remove('hidden');
+}
+
 function setDetectionStatus(status: string) {
   const badge = $('#detection-status');
   const map: Record<string, string> = {
@@ -335,17 +337,45 @@ function updateTierDisplay() {
   tierEl.appendChild(el('span', { class: `tier-badge ${currentTier}` }, names[currentTier]));
   if (currentTier === Tier.FREE) {
     tierEl.appendChild(document.createElement('br'));
-    tierEl.appendChild(el('a', { href: '#', style: 'color:#6366f1;font-size:12px;margin-top:8px;display:inline-block;' }, t('tier.upgrade')));
+    const upgradeLink = el('a', { href: '#', style: 'color:#6366f1;font-size:12px;margin-top:8px;display:inline-block;' }, t('tier.upgrade'));
+    upgradeLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(getPaymentLink(Tier.PREMIUM), '_blank');
+    });
+    tierEl.appendChild(upgradeLink);
   }
+}
+
+function updatePricingLinks() {
+  const pricingEl = $('#pricing-links');
+  clearChildren(pricingEl);
+  const mkLink = (tier: Tier.AD_FREE | Tier.PREMIUM, label: string, desc: string, price: string, color: string, bg: string) => {
+    const a = el('a', { target: '_blank', style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:${bg};border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;` });
+    (a as HTMLAnchorElement).href = getPaymentLink(tier);
+    const left = el('div', { style: 'display:flex;flex-direction:column;gap:2px;' });
+    left.appendChild(el('span', { style: 'font-size:12px;font-weight:600;' }, label));
+    left.appendChild(el('span', { style: 'font-size:10px;color:#71717a;' }, desc));
+    a.appendChild(left);
+    a.appendChild(el('span', { style: `font-size:12px;color:${color};font-weight:600;white-space:nowrap;margin-left:8px;` }, price));
+    return a;
+  };
+  pricingEl.appendChild(mkLink(Tier.AD_FREE, t('tier.adFree'), t('tier.adFreeDesc'), '$4.99/mo', '#6366f1', '#1a1b23'));
+  pricingEl.appendChild(mkLink(Tier.PREMIUM, t('tier.premium'), t('tier.premiumDesc'), '$9.99/mo', '#eab308', 'rgba(234,179,8,0.05)'));
 }
 
 function updateAllTexts() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.getAttribute('data-i18n')!);
   });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    (el as HTMLInputElement).placeholder = t(el.getAttribute('data-i18n-placeholder')!);
+  });
   $('#app-title').textContent = t('app.title');
   $('#disclaimer-text').textContent = t('disclaimer.text');
   $('#disclaimer-btn').textContent = t('disclaimer.understand');
+  updateTierDisplay();
+  updatePricingLinks();
+  updateServerStatus();
 }
 
 init();

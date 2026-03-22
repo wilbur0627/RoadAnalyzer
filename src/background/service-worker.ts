@@ -86,13 +86,24 @@ async function captureAndAnalyze(
   if (!serverResp.ok) throw new Error(`Server ${serverResp.status}`);
   const data = await serverResp.json();
 
-  // Broadcast results if any were detected
-  if (data.results && data.results.length > 0) {
-    chrome.runtime.sendMessage({
+  // Convert server's sequence (["B","P","T",...]) to GameResult[] ({outcome}[])
+  const sequence: string[] = data.sequence ?? [];
+  if (sequence.length > 0) {
+    const results = sequence.map((s: string) => ({ outcome: s }));
+    const msg = {
       type: 'RESULTS_DETECTED',
-      results: data.results,
+      results,
       source: 'screenshot',
-    }).catch(() => {});
+      debugImage: data.debug_image ?? null,
+    };
+
+    // Send to popup
+    chrome.runtime.sendMessage(msg).catch(() => {});
+
+    // Send to content script on the active tab (for overlay)
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+    });
   }
 
   return data;

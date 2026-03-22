@@ -59,6 +59,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   }
+
+  // Handle screenshot analysis results from service worker
+  if (msg.type === 'RESULTS_DETECTED' && Array.isArray(msg.results)) {
+    currentResults = msg.results;
+    getOverlay().updateResults(msg.results, msg.debugImage ?? null);
+  }
 });
 
 if (document.readyState === 'loading') {

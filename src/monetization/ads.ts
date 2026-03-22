@@ -1,6 +1,7 @@
 import { Tier } from '../shared/constants';
 import { getTier } from '../shared/storage';
 import { getPaymentLink } from './license';
+import { t } from '../i18n/i18n';
 
 const AD_CONTAINER_ID = 'road-analyzer-ad';
 
@@ -64,7 +65,7 @@ export async function initAds(container: HTMLElement): Promise<void> {
           padding: 12px;
         ">
           <div style="font-size:11px;color:#71717a;margin-bottom:6px;">
-            Enjoying RoadAnalyzer?
+            ${t('ads.enjoying')}
           </div>
           <button id="ra-upgrade-btn" style="
             background: linear-gradient(135deg, #6366f1, #8b5cf6);
@@ -76,7 +77,7 @@ export async function initAds(container: HTMLElement): Promise<void> {
             font-weight: 600;
             cursor: pointer;
           ">
-            Upgrade to Premium
+            ${t('ads.upgradeToPremium')}
           </button>
         </div>
       </div>

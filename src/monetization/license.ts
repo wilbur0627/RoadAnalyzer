@@ -1,4 +1,5 @@
 import { Tier, STORAGE_KEYS } from '../shared/constants';
+import { t } from '../i18n/i18n';
 
 /**
  * LemonSqueezy configuration.
@@ -137,14 +138,14 @@ export async function activateLicense(licenseKey: string): Promise<{
       return {
         success: false,
         tier: Tier.FREE,
-        message: err.error ?? 'Failed to activate license',
+        message: err.error ?? t('license.activateFailed'),
       };
     }
   } catch {
     return {
       success: false,
       tier: Tier.FREE,
-      message: 'Network error. Please try again.',
+      message: t('license.networkError'),
     };
   }
 
@@ -159,14 +160,14 @@ export async function activateLicense(licenseKey: string): Promise<{
     return {
       success: false,
       tier: Tier.FREE,
-      message: 'Invalid or expired license key',
+      message: t('license.invalidKey'),
     };
   }
 
   return {
     success: true,
     tier,
-    message: `Activated! Your plan: ${tier === Tier.PREMIUM ? 'Premium' : 'Ad-Free'}`,
+    message: t('license.activateSuccess', tier === Tier.PREMIUM ? t('tier.premium') : t('tier.adFree')),
   };
 }
 

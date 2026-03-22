@@ -1,22 +1,37 @@
 """
 Debug script — visualize grid-based detection.
-Usage: python debug_detect.py <screenshot.png> [x y w h]
+Usage:
+  python debug_detect.py debug/latest.png          (auto-loads region from debug/region.json)
+  python debug_detect.py <screenshot.png> x y w h  (manual region)
 """
 import sys
+import os
+import json
 import cv2
 from road_detector import analyze_image
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python debug_detect.py <image> [x y w h]")
         return
 
-    with open(sys.argv[1], "rb") as f:
+    image_path = sys.argv[1]
+    with open(image_path, "rb") as f:
         image_bytes = f.read()
 
     region = None
     if len(sys.argv) >= 6:
         region = (int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]))
+    else:
+        # Try to auto-load region from debug/region.json
+        region_file = os.path.join(os.path.dirname(image_path), "region.json")
+        if os.path.exists(region_file):
+            with open(region_file) as f:
+                data = json.load(f)
+            if data.get("region"):
+                region = tuple(data["region"])
+                print(f"Auto-loaded region: {region}")
 
     result = analyze_image(image_bytes, region)
 
@@ -29,10 +44,13 @@ def main():
     print(f"Sequence ({result['total']}): {''.join(result['sequence'])}")
     print(f"B={result['banker_count']} P={result['player_count']} T={result['tie_count']}")
 
-    # Draw visualization
-    image = cv2.imread(sys.argv[1])
+    # Draw visualization on the cropped region
+    image = cv2.imread(image_path)
     if region:
         x, y, w, h = region
+        ih, iw = image.shape[:2]
+        x, y = max(0, min(x, iw)), max(0, min(y, ih))
+        w, h = min(w, iw - x), min(h, ih - y)
         image = image[y:y+h, x:x+w]
 
     cs = grid.get("cell_size", 1)

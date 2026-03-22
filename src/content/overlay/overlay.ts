@@ -5,6 +5,7 @@ import { getTier } from '../../shared/storage';
 import { Tier } from '../../shared/constants';
 import { DetectionStatus } from '../detector/detection-engine';
 import { el, clearChildren, safeNumber } from '../../shared/sanitize';
+import { t } from '../../i18n/i18n';
 
 /**
  * Floating overlay panel injected into the page.
@@ -23,6 +24,7 @@ export class Overlay {
   private statusEl!: HTMLElement;
   private predictionEl!: HTMLElement;
   private statsEl!: HTMLElement;
+  private debugEl!: HTMLElement;
 
   constructor() {
     this.container = document.createElement('div');
@@ -35,7 +37,7 @@ export class Overlay {
     document.body.appendChild(this.container);
 
     // Cache tier once, update on storage change
-    getTier().then(t => { this.cachedTier = t; });
+    getTier().then(tier => { this.cachedTier = tier; });
     try {
       chrome.storage.onChanged.addListener((changes) => {
         if (changes.tier) this.cachedTier = (changes.tier.newValue as Tier) ?? Tier.FREE;
@@ -70,11 +72,12 @@ export class Overlay {
 
     // Body
     const body = el('div', { id: 'ra-body', style: 'padding:10px 12px;' });
-    this.statusEl = el('div', { style: 'color:#71717a;text-align:center;padding:8px;' }, 'Scanning...');
+    this.statusEl = el('div', { style: 'color:#71717a;text-align:center;padding:8px;' }, t('detection.scanning'));
     this.predictionEl = el('div', { style: 'display:none;' });
     this.statsEl = el('div', { style: 'display:none;' });
+    this.debugEl = el('div', { style: 'display:none;margin-top:8px;' });
 
-    body.append(this.statusEl, this.predictionEl, this.statsEl);
+    body.append(this.statusEl, this.predictionEl, this.statsEl, this.debugEl);
     this.container.append(header, body);
   }
 
@@ -101,7 +104,7 @@ export class Overlay {
   private onMouseUp(): void { this.isDragging = false; }
 
   /** Update overlay with new detection results */
-  updateResults(results: GameResult[]): void {
+  updateResults(results: GameResult[], debugImage?: string | null): void {
     this.roadManager.setResults(results);
     const analysis = this.roadManager.analyze();
     const isPremium = this.cachedTier === Tier.PREMIUM;
@@ -111,14 +114,31 @@ export class Overlay {
     this.updateStatus('found');
     this.updatePredictionDisplay(pred);
     this.updateStatsDisplay(stats);
+    this.updateDebugDisplay(debugImage ?? null);
+  }
+
+  /** Show the debug detection grid image */
+  private updateDebugDisplay(debugImage: string | null): void {
+    clearChildren(this.debugEl);
+    if (!debugImage) {
+      this.debugEl.style.display = 'none';
+      return;
+    }
+
+    this.debugEl.style.display = 'block';
+    this.debugEl.appendChild(el('div', { style: 'font-size:10px;color:#71717a;margin-bottom:4px;' }, t('detection.preview')));
+    const img = document.createElement('img');
+    img.src = debugImage;
+    img.style.cssText = 'width:100%;border-radius:4px;border:1px solid #2a2b35;';
+    this.debugEl.appendChild(img);
   }
 
   updateStatus(status: DetectionStatus | string): void {
     const statusTexts: Record<string, string> = {
-      scanning: 'Scanning...',
-      found: 'Road detected',
-      not_found: 'No road found',
-      watching: 'Watching for updates...',
+      scanning: t('detection.scanning'),
+      found: t('detection.found'),
+      not_found: t('detection.notFound'),
+      watching: t('detection.watching'),
     };
     this.statusEl.textContent = statusTexts[status] ?? '';
     this.statusEl.style.display = status === 'found' || status === 'watching' ? 'none' : 'block';
@@ -142,8 +162,8 @@ export class Overlay {
     const row = el('div', { style: `display:flex;align-items:center;gap:10px;padding:8px;background:${bgColor};border-radius:8px;border:1px solid ${color}30;` });
     const circle = el('div', { style: `width:40px;height:40px;border-radius:50%;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:${color};` }, isBanker ? 'B' : 'P');
     const info = el('div', { style: 'flex:1;' });
-    info.appendChild(el('div', { style: 'font-size:11px;color:#a1a1aa;' }, 'Next Prediction'));
-    info.appendChild(el('div', { style: `font-weight:700;color:${color};` }, `Confidence: ${confidence}%`));
+    info.appendChild(el('div', { style: 'font-size:11px;color:#a1a1aa;' }, t('prediction.nextOutcome')));
+    info.appendChild(el('div', { style: `font-weight:700;color:${color};` }, t('prediction.confidence', confidence)));
     const bar = el('div', { style: 'height:4px;background:#2a2b35;border-radius:2px;margin-top:4px;overflow:hidden;' });
     bar.appendChild(el('div', { style: `height:100%;width:${confidence}%;background:${color};border-radius:2px;` }));
     info.appendChild(bar);
@@ -157,16 +177,16 @@ export class Overlay {
     clearChildren(this.statsEl);
 
     const row = el('div', { style: 'display:flex;gap:6px;margin-top:8px;' });
-    const items: [string, string, number][] = [
-      ['#71717a', 'Total', stats.total],
-      ['#ef4444', 'B', stats.banker],
-      ['#3b82f6', 'P', stats.player],
-      ['#22c55e', 'T', stats.tie],
+    const items: [string, string, number, boolean][] = [
+      ['#71717a', t('stats.total'), stats.total, false],
+      ['#ef4444', t('outcome.bankerShort'), stats.banker, true],
+      ['#3b82f6', t('outcome.playerShort'), stats.player, true],
+      ['#22c55e', t('outcome.tieShort'), stats.tie, true],
     ];
-    for (const [color, label, value] of items) {
+    for (const [color, label, value, tinted] of items) {
       const cell = el('div', { style: 'flex:1;text-align:center;padding:4px;background:#1e1f2a;border-radius:6px;' });
       cell.appendChild(el('div', { style: `font-size:10px;color:${color};` }, label));
-      cell.appendChild(el('div', { style: `font-weight:700;${label !== 'Total' ? `color:${color};` : ''}` }, String(safeNumber(value))));
+      cell.appendChild(el('div', { style: `font-weight:700;${tinted ? `color:${color};` : ''}` }, String(safeNumber(value))));
       row.appendChild(cell);
     }
     this.statsEl.appendChild(row);
