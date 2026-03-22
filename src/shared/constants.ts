@@ -17,7 +17,7 @@ export interface RoadRegion {
 }
 
 /** Server configuration */
-export const SERVER_URL = 'http://localhost:18920';
+export const SERVER_URL = 'https://road-analyzer-henna.vercel.app';
 
 /** User tier levels */
 export enum Tier {
