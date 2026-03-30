@@ -22,7 +22,6 @@ export const SERVER_URL = 'https://road-analyzer-henna.vercel.app';
 /** User tier levels */
 export enum Tier {
   FREE = 'free',
-  AD_FREE = 'ad_free',
   PREMIUM = 'premium',
 }
 

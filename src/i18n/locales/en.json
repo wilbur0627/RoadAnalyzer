@@ -70,11 +70,9 @@
   "settings.enterLicenseKey": "Enter license key...",
   "settings.activate": "Activate",
   "settings.upgradePlans": "Upgrade Plans",
-  "tier.adFreeDesc": "Remove ads, game history",
-  "tier.premiumDesc": "Advanced prediction signals, derived road consensus, data export",
+  "tier.premiumDesc": "Game history, advanced prediction signals, derived road consensus, data export",
 
   "tier.free": "Free",
-  "tier.adFree": "Ad-Free",
   "tier.premium": "Premium",
   "tier.upgrade": "Upgrade",
 

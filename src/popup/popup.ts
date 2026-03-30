@@ -332,7 +332,7 @@ function updateServerStatus() {
 
 function updateTierDisplay() {
   const tierEl = $('#tier-display');
-  const names: Record<Tier, string> = { [Tier.FREE]: t('tier.free'), [Tier.AD_FREE]: t('tier.adFree'), [Tier.PREMIUM]: t('tier.premium') };
+  const names: Record<Tier, string> = { [Tier.FREE]: t('tier.free'), [Tier.PREMIUM]: t('tier.premium') };
   clearChildren(tierEl);
   tierEl.appendChild(el('span', { class: `tier-badge ${currentTier}` }, names[currentTier]));
   if (currentTier === Tier.FREE) {
@@ -340,7 +340,7 @@ function updateTierDisplay() {
     const upgradeLink = el('a', { href: '#', style: 'color:#6366f1;font-size:12px;margin-top:8px;display:inline-block;' }, t('tier.upgrade'));
     upgradeLink.addEventListener('click', (e) => {
       e.preventDefault();
-      window.open(getPaymentLink(Tier.PREMIUM), '_blank');
+      window.open(getPaymentLink(), '_blank');
     });
     tierEl.appendChild(upgradeLink);
   }
@@ -349,18 +349,14 @@ function updateTierDisplay() {
 function updatePricingLinks() {
   const pricingEl = $('#pricing-links');
   clearChildren(pricingEl);
-  const mkLink = (tier: Tier.AD_FREE | Tier.PREMIUM, label: string, desc: string, price: string, color: string, bg: string) => {
-    const a = el('a', { target: '_blank', style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:${bg};border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;` });
-    (a as HTMLAnchorElement).href = getPaymentLink(tier);
-    const left = el('div', { style: 'display:flex;flex-direction:column;gap:2px;' });
-    left.appendChild(el('span', { style: 'font-size:12px;font-weight:600;' }, label));
-    left.appendChild(el('span', { style: 'font-size:10px;color:#71717a;' }, desc));
-    a.appendChild(left);
-    a.appendChild(el('span', { style: `font-size:12px;color:${color};font-weight:600;white-space:nowrap;margin-left:8px;` }, price));
-    return a;
-  };
-  pricingEl.appendChild(mkLink(Tier.AD_FREE, t('tier.adFree'), t('tier.adFreeDesc'), '$4.99/mo', '#6366f1', '#1a1b23'));
-  pricingEl.appendChild(mkLink(Tier.PREMIUM, t('tier.premium'), t('tier.premiumDesc'), '$9.99/mo', '#eab308', 'rgba(234,179,8,0.05)'));
+  const a = el('a', { target: '_blank', style: `display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(234,179,8,0.05);border-radius:6px;text-decoration:none;color:#e4e4e7;border:1px solid #2a2b35;` });
+  (a as HTMLAnchorElement).href = getPaymentLink();
+  const left = el('div', { style: 'display:flex;flex-direction:column;gap:2px;' });
+  left.appendChild(el('span', { style: 'font-size:12px;font-weight:600;' }, t('tier.premium')));
+  left.appendChild(el('span', { style: 'font-size:10px;color:#71717a;' }, t('tier.premiumDesc')));
+  a.appendChild(left);
+  a.appendChild(el('span', { style: `font-size:12px;color:#eab308;font-weight:600;white-space:nowrap;margin-left:8px;` }, '$4.99/mo'));
+  pricingEl.appendChild(a);
 }
 
 function updateAllTexts() {

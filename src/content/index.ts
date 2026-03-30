@@ -5,7 +5,7 @@ import { selectRegion } from './region-selector';
 
 /**
  * Content Script — injected automatically on all pages.
- * Handles DOM/Canvas detection and region selection overlay.
+ * Detection and overlay only start after user triggers "Select Region" from popup.
  */
 
 let overlay: Overlay | null = null;
@@ -17,7 +17,9 @@ function getOverlay(): Overlay {
   return overlay;
 }
 
-function init() {
+function startDetection() {
+  if (engine) return; // already running
+
   engine = new DetectionEngine(
     (status) => {
       if (overlay) overlay.updateStatus(status);
@@ -41,7 +43,7 @@ function init() {
   engine.start();
 }
 
-// Listen for messages from popup
+// Listen for messages from popup / service worker
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
 
@@ -60,6 +62,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Start detection when user has selected a region or triggered capture
+  if (msg.type === 'START_DETECTION') {
+    startDetection();
+    return;
+  }
+
   // Handle screenshot analysis results from service worker
   if (msg.type === 'RESULTS_DETECTED' && Array.isArray(msg.results)) {
     currentResults = msg.results;
@@ -67,8 +75,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+// Check if a region was previously saved — if so, start detection automatically
+chrome.storage.sync.get('roadRegion').then((data) => {
+  if (data.roadRegion) {
+    startDetection();
+  }
+});

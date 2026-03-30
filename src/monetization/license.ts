@@ -10,11 +10,8 @@ const LEMON_CONFIG = {
   apiUrl: 'https://api.lemonsqueezy.com/v1',
   /** Your store slug */
   storeSlug: 'wbglot',
-  /** Checkout URLs for each tier (from LemonSqueezy product page) */
-  checkoutUrls: {
-    [Tier.AD_FREE]: 'https://wbglot.lemonsqueezy.com/checkout/buy/2d270a7b-c1a6-4d67-bffb-1bb702dbf85c',
-    [Tier.PREMIUM]: 'https://wbglot.lemonsqueezy.com/checkout/buy/a648ed50-a12d-4c95-9322-106756d3ba19',
-  },
+  /** Checkout URL for Premium tier (from LemonSqueezy product page) */
+  checkoutUrl: 'https://wbglot.lemonsqueezy.com/checkout/buy/a648ed50-a12d-4c95-9322-106756d3ba19',
   /** LemonSqueezy customer portal URL */
   portalUrl: 'https://wbglot.lemonsqueezy.com/billing',
   /** Cache TTL in milliseconds (24 hours) */
@@ -57,15 +54,8 @@ export async function validateLicense(licenseKey: string): Promise<Tier> {
     const variantName = data.meta?.variant_name?.toLowerCase() ?? '';
     const productName = data.meta?.product_name?.toLowerCase() ?? '';
 
-    let tier: Tier = Tier.FREE;
-    if (variantName.includes('premium') || productName.includes('premium')) {
-      tier = Tier.PREMIUM;
-    } else if (variantName.includes('ad') || productName.includes('ad-free') || productName.includes('ad_free')) {
-      tier = Tier.AD_FREE;
-    } else {
-      // Any valid license at minimum removes ads
-      tier = Tier.AD_FREE;
-    }
+    // Any valid license grants Premium
+    const tier: Tier = Tier.PREMIUM;
 
     // Check subscription status
     const status = data.license_key?.status;
@@ -167,7 +157,7 @@ export async function activateLicense(licenseKey: string): Promise<{
   return {
     success: true,
     tier,
-    message: t('license.activateSuccess', tier === Tier.PREMIUM ? t('tier.premium') : t('tier.adFree')),
+    message: t('license.activateSuccess', t('tier.premium')),
   };
 }
 
@@ -203,9 +193,9 @@ export async function deactivateLicense(): Promise<void> {
   await chrome.storage.sync.set({ [STORAGE_KEYS.TIER]: Tier.FREE });
 }
 
-/** Get the LemonSqueezy checkout URL for a tier */
-export function getPaymentLink(tier: Tier.AD_FREE | Tier.PREMIUM): string {
-  return LEMON_CONFIG.checkoutUrls[tier];
+/** Get the LemonSqueezy checkout URL for Premium */
+export function getPaymentLink(): string {
+  return LEMON_CONFIG.checkoutUrl;
 }
 
 /** Get the LemonSqueezy customer portal URL */

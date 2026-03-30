@@ -31,6 +31,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((data) => sendResponse({ ok: true, data }))
       .catch((err) => sendResponse({ ok: false, error: String(err) }));
 
+    // Notify content script to start detection & overlay
+    if (sender.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, { type: 'START_DETECTION' }).catch(() => {});
+    }
+
     // Set up periodic re-capture every 3 seconds
     chrome.alarms.create('screenshot-poll', { periodInMinutes: 0.05 }); // ~3s
     return true;

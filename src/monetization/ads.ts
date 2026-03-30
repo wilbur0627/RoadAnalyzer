@@ -59,7 +59,7 @@ export async function initAds(container: HTMLElement): Promise<void> {
   const btn = adContainer.querySelector('#ra-upgrade-btn');
   btn?.addEventListener('click', (e) => {
     e.preventDefault();
-    window.open(getPaymentLink(Tier.PREMIUM), '_blank');
+    window.open(getPaymentLink(), '_blank');
   });
 
   container.appendChild(adContainer);

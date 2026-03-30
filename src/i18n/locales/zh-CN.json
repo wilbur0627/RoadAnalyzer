@@ -70,11 +70,9 @@
   "settings.enterLicenseKey": "输入授权密钥...",
   "settings.activate": "激活",
   "settings.upgradePlans": "升级方案",
-  "tier.adFreeDesc": "移除广告、游戏记录",
-  "tier.premiumDesc": "进阶预测信号、衍生路共识分析、数据导出",
+  "tier.premiumDesc": "游戏记录、进阶预测信号、衍生路共识分析、数据导出",
 
   "tier.free": "免费版",
-  "tier.adFree": "无广告版",
   "tier.premium": "进阶版",
   "tier.upgrade": "升级",
 

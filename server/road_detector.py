@@ -1,9 +1,14 @@
 """
-Baccarat Road Detector — Blur + Grid approach.
+Baccarat Road Detector — Blur + Grid approach with automatic Big Road isolation.
 
 Key insight: heavily blur the image FIRST so text characters (莊/閒/和),
 outlines, and solid circles all become uniform color blobs.
 Then classify each grid cell by dominant color.
+
+When the screenshot contains multiple road types (Big Road, Bead Plate,
+Big Eye Boy, Small Road, Cockroach Pig), the detector automatically
+segments them by finding horizontal gaps and identifies the Big Road
+as the tallest segment with the largest circles.
 
 Tie handling: In standard baccarat Big Road, ties are shown as green
 lines/numbers overlaid on the previous B/P circle, not as separate cells.
@@ -35,6 +40,10 @@ BIG_ROAD_ROWS = 6
 MIN_COLOR_RATIO = 0.08
 # Green tie markers are small — even 2% of the cell area is significant
 MIN_TIE_RATIO = 0.02
+# Minimum gap (in pixels) between road segments to consider them separate
+MIN_SEGMENT_GAP = 4
+# Minimum fraction of colored pixels in a row to consider it non-empty
+ROW_COLOR_THRESHOLD = 0.005
 
 
 def color_pixel_count(hsv: np.ndarray, color: str) -> int:
@@ -86,6 +95,118 @@ def estimate_cell_size(img_h: int) -> int:
     return max(8, img_h // BIG_ROAD_ROWS)
 
 
+# ── Road Segment Isolation ──
+
+
+def _row_has_color(hsv_row: np.ndarray) -> bool:
+    """Check if a horizontal row of pixels has meaningful colored content."""
+    area = hsv_row.shape[0] * hsv_row.shape[1]
+    if area == 0:
+        return False
+    total = 0
+    for color in ["B", "P", "T"]:
+        total += color_pixel_count(hsv_row, color)
+    return total >= area * ROW_COLOR_THRESHOLD
+
+
+def find_road_segments(image: np.ndarray) -> List[Tuple[int, int]]:
+    """Find vertically separated road segments by scanning for horizontal gaps.
+
+    Returns list of (y_start, y_end) tuples for each segment.
+    A gap is a consecutive run of rows with no colored pixels.
+    """
+    img_h, img_w = image.shape[:2]
+    if img_h < 20:
+        return [(0, img_h)]
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Scan each row
+    row_active = []
+    for y in range(img_h):
+        row_active.append(_row_has_color(hsv[y:y+1, :]))
+
+    # Find contiguous active segments
+    segments = []
+    in_segment = False
+    seg_start = 0
+
+    for y, active in enumerate(row_active):
+        if active and not in_segment:
+            seg_start = y
+            in_segment = True
+        elif not active and in_segment:
+            # Check if this gap is wide enough to be a real separator
+            gap_end = y
+            while gap_end < img_h and not row_active[gap_end]:
+                gap_end += 1
+            gap_size = gap_end - y
+            if gap_size >= MIN_SEGMENT_GAP:
+                segments.append((seg_start, y))
+                in_segment = False
+
+    if in_segment:
+        segments.append((seg_start, img_h))
+
+    # Filter out very thin segments (likely text labels, stats bars, etc.)
+    # A valid road segment should be at least 30px tall
+    segments = [(s, e) for s, e in segments if (e - s) >= 30]
+
+    if not segments:
+        return [(0, img_h)]
+
+    return segments
+
+
+def pick_big_road_segment(
+    image: np.ndarray,
+    segments: List[Tuple[int, int]],
+) -> Tuple[int, int]:
+    """Pick the segment most likely to be the Big Road.
+
+    Heuristics:
+    1. Big Road has the tallest cells (largest circles) among all roads.
+       It's typically the tallest segment or near the top.
+    2. Big Road uses standard 6-row layout, so its height should be
+       divisible-ish by 6 with a reasonable cell size.
+    3. It should contain both red and blue colored cells.
+    """
+    if len(segments) == 1:
+        return segments[0]
+
+    best = segments[0]
+    best_score = -1
+
+    for seg_start, seg_end in segments:
+        seg_h = seg_end - seg_start
+        seg_img = image[seg_start:seg_end, :]
+
+        # Score 1: Height — Big Road is usually the tallest segment
+        height_score = seg_h
+
+        # Score 2: Has both red and blue — a road should have B and P cells
+        hsv = cv2.cvtColor(seg_img, cv2.COLOR_BGR2HSV)
+        area = seg_img.shape[0] * seg_img.shape[1]
+        b_count = color_pixel_count(hsv, "B")
+        p_count = color_pixel_count(hsv, "P")
+        has_both = 1.0 if (b_count > area * 0.005 and p_count > area * 0.005) else 0.3
+
+        # Score 3: Cell size reasonableness — Big Road cells are bigger than derived roads
+        estimated_cell = seg_h / BIG_ROAD_ROWS
+        # Big Road cells are typically 15-80px; derived roads use smaller cells
+        cell_score = 1.0 if estimated_cell >= 12 else 0.3
+
+        score = height_score * has_both * cell_score
+        if score > best_score:
+            best_score = score
+            best = (seg_start, seg_end)
+
+    return best
+
+
+# ── Core Grid Detection ──
+
+
 def detect_grid(
     image: np.ndarray,
     region: Optional[Tuple[int, int, int, int]] = None,
@@ -97,6 +218,14 @@ def detect_grid(
         w, h = min(w, iw - x), min(h, ih - y)
         if w > 0 and h > 0:
             image = image[y:y+h, x:x+w]
+
+    # ── Auto-segment: find and isolate the Big Road ──
+    segments = find_road_segments(image)
+    seg_y_offset = 0
+    if len(segments) > 1:
+        seg_start, seg_end = pick_big_road_segment(image, segments)
+        seg_y_offset = seg_start
+        image = image[seg_start:seg_end, :]
 
     img_h, img_w = image.shape[:2]
 
@@ -150,6 +279,8 @@ def detect_grid(
         "grid_rows": rows,
         "grid_cols": cols,
         "cell_size": cell_size,
+        "segment_offset": seg_y_offset,
+        "segments_found": len(segments),
     }
 
 
@@ -180,8 +311,13 @@ def grid_to_sequence(cells: List[dict]) -> List[str]:
     return sequence
 
 
-def generate_debug_image(image: np.ndarray, cells: List[dict], cell_size: int) -> str:
-    """Draw detection grid overlay and return as base64 PNG data URL."""
+def generate_debug_image(image: np.ndarray, cells: List[dict], cell_size: int,
+                         segment_offset: int = 0, segments: List[Tuple[int, int]] = None) -> str:
+    """Draw detection grid overlay and return as base64 PNG data URL.
+
+    If segments were found, draw segment boundaries on the full image to show
+    which region was selected as Big Road.
+    """
     vis = image.copy()
     color_map = {"B": (0, 0, 255), "P": (255, 0, 0), "T": (0, 180, 0)}
 
@@ -211,7 +347,7 @@ def analyze_image(
     if image is None:
         return {"error": "Failed to decode image", "cells": [], "sequence": []}
 
-    # Crop to region for debug image
+    # Crop to region first
     cropped = image
     if region:
         x, y, w, h = region
@@ -224,7 +360,24 @@ def analyze_image(
     grid = detect_grid(image, region)
     cells = grid["cells"]
     sequence = grid_to_sequence(cells)
-    debug_img = generate_debug_image(cropped, cells, grid["cell_size"])
+
+    # Generate debug image on the segmented (Big Road) portion
+    seg_offset = grid.get("segment_offset", 0)
+    if region:
+        x, y, w, h = region
+        ih, iw = image.shape[:2]
+        x, y = max(0, min(x, iw)), max(0, min(y, ih))
+        w, h = min(w, iw - x), min(h, ih - y)
+        if w > 0 and h > 0:
+            debug_base = image[y:y+h, x:x+w]
+    else:
+        debug_base = image
+
+    if seg_offset > 0:
+        seg_h = grid["grid_rows"] * grid["cell_size"]
+        debug_base = debug_base[seg_offset:seg_offset+seg_h, :]
+
+    debug_img = generate_debug_image(debug_base, cells, grid["cell_size"])
 
     return {
         "cells": cells,
@@ -238,6 +391,7 @@ def analyze_image(
             "cell_size": grid["cell_size"],
             "rows": grid["grid_rows"],
             "cols": grid["grid_cols"],
+            "segments_found": grid["segments_found"],
         },
         "debug_image": debug_img,
     }
