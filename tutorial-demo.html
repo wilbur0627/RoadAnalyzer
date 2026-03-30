@@ -1,93 +1,195 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>RoadAnalyzer Tutorial Demo</title>
+<title>RoadAnalyzer Tutorial</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 1280px; height: 800px; overflow: hidden;
     background: #0a0a0f; position: relative;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
-  /* ── Phone frame with game screenshot ── */
-  .phone-frame {
-    position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
-    width: 360px; height: 740px;
-    border-radius: 36px; overflow: hidden;
-    border: 4px solid #333;
+  /* ── Phone frame ── */
+  .phone {
+    position: absolute; left: 60px; top: 50%; transform: translateY(-50%);
+    width: 340px; height: 720px;
+    border-radius: 32px; overflow: hidden;
+    border: 3px solid #333;
     box-shadow: 0 20px 60px rgba(0,0,0,0.7);
   }
-  .game-img {
-    width: 100%; height: 100%;
-    object-fit: cover; object-position: top center;
-  }
+  .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
 
-  /* ── Popup images ── */
-  .popup-img {
-    position: absolute;
-    top: 50%; right: 140px; transform: translateY(-50%);
-    height: 600px; width: auto;
-    border-radius: 16px;
-    box-shadow: 0 16px 64px rgba(0,0,0,0.8);
-    opacity: 0;
-    transition: opacity 0.5s ease, transform 0.5s ease;
-  }
-  .popup-img.show { opacity: 1; }
-
-  /* ── Region selection overlay on phone ── */
+  /* ── Region overlay on phone ── */
   .region-overlay {
-    position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
-    width: 360px; height: 740px;
-    border-radius: 36px;
+    position: absolute; left: 60px; top: 50%; transform: translateY(-50%);
+    width: 340px; height: 720px; border-radius: 32px;
     background: rgba(0,0,0,0.45);
-    opacity: 0; transition: opacity 0.4s;
-    z-index: 10;
+    opacity: 0; transition: opacity 0.4s; z-index: 10;
   }
   .region-overlay.show { opacity: 1; }
-
   .region-banner {
-    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,0.9); color: white; padding: 6px 16px;
-    border-radius: 8px; font-size: 12px; white-space: nowrap;
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.9); color: #fff; padding: 6px 16px;
+    border-radius: 8px; font-size: 11px; white-space: nowrap;
   }
-
   .region-box {
-    position: absolute;
-    border: 2.5px dashed #6366f1;
-    background: rgba(99,102,241,0.2);
-    border-radius: 4px;
+    position: absolute; border: 2.5px dashed #6366f1;
+    background: rgba(99,102,241,0.2); border-radius: 3px;
     opacity: 0; z-index: 11;
   }
   .region-box.show { opacity: 1; }
 
-  /* ── Arrow pointing at road area ── */
-  .arrow-hint {
-    position: absolute; z-index: 15; opacity: 0;
-    transition: opacity 0.5s;
-    pointer-events: none;
-  }
-  .arrow-hint.show { opacity: 1; }
-  .arrow-hint-text {
-    color: #fbbf24; font-size: 15px; font-weight: 700;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.9);
-    position: absolute; white-space: nowrap;
-  }
-  .arrow-hint-line {
-    position: absolute; border-left: 2.5px solid #fbbf24;
-    border-bottom: 2.5px solid #fbbf24;
-  }
-
   /* ── Toast ── */
   .toast {
-    position: absolute; bottom: 120px; left: 260px; transform: translateX(-50%);
-    background: #22c55e; color: white; padding: 8px 20px;
-    border-radius: 8px; font-size: 13px; font-weight: 600;
+    position: absolute; bottom: 110px; left: 230px; transform: translateX(-50%);
+    background: #22c55e; color: #fff; padding: 7px 18px;
+    border-radius: 8px; font-size: 12px; font-weight: 600;
     z-index: 300; opacity: 0; transition: opacity 0.3s;
     box-shadow: 0 4px 16px rgba(34,197,94,0.4);
   }
   .toast.show { opacity: 1; }
+
+  /* ── Popup (built from extension styles) ── */
+  .popup-frame {
+    position: absolute; top: 50%; right: 100px; transform: translateY(-50%);
+    width: 380px; border-radius: 14px; overflow: hidden;
+    background: #0f1117; border: 1px solid #2a2b35;
+    box-shadow: 0 16px 64px rgba(0,0,0,0.8);
+    opacity: 0; transition: opacity 0.5s, transform 0.5s;
+    z-index: 50;
+  }
+  .popup-frame.show { opacity: 1; }
+
+  /* Header */
+  .p-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: #1a1b23; border-bottom: 1px solid #2a2b35;
+  }
+  .p-header-left { display: flex; align-items: center; gap: 10px; }
+  .p-title {
+    font-size: 16px; font-weight: 700;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .p-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: #2a2b35; color: #71717a;
+  }
+  .p-badge.active { background: #065f46; color: #34d399; }
+  .p-icon-btn {
+    background: none; border: 1px solid #2a2b35; color: #a1a1aa;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Stats */
+  .p-stats {
+    display: flex; padding: 10px 16px; gap: 8px; background: #13141b;
+  }
+  .p-stat {
+    flex: 1; text-align: center; padding: 6px; border-radius: 8px; background: #1a1b23;
+  }
+  .p-stat-label { font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: .5px; }
+  .p-stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .p-stat-pct { font-size: 10px; color: #71717a; }
+
+  /* Prediction */
+  .p-prediction {
+    margin: 8px 16px; background: #1a1b23; border: 1px solid #2a2b35;
+    border-radius: 10px; overflow: hidden; opacity: 0; max-height: 0;
+    transition: opacity 0.5s, max-height 0.5s;
+  }
+  .p-prediction.show { opacity: 1; max-height: 200px; }
+  .p-pred-header {
+    padding: 8px 12px; font-size: 12px; font-weight: 600;
+    color: #a1a1aa; background: #1e1f2a; border-bottom: 1px solid #2a2b35;
+  }
+  .p-pred-body { display: flex; align-items: center; padding: 12px; gap: 12px; }
+  .p-pred-circle {
+    width: 50px; height: 50px; border-radius: 50%;
+    border: 2px solid #3b82f6; background: rgba(59,130,246,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; color: #3b82f6;
+  }
+  .p-pred-info { flex: 1; }
+  .p-pred-label { font-size: 11px; color: #a1a1aa; }
+  .p-pred-conf { font-weight: 700; color: #3b82f6; font-size: 13px; }
+  .p-conf-bar {
+    height: 6px; background: #2a2b35; border-radius: 3px;
+    margin-top: 5px; overflow: hidden;
+  }
+  .p-conf-fill {
+    height: 100%; width: 0%; border-radius: 3px;
+    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+    transition: width 0.8s ease-out;
+  }
+  .p-signal {
+    padding: 6px 12px; border-top: 1px solid #2a2b35;
+    display: flex; justify-content: space-between; font-size: 11px; color: #71717a;
+  }
+  .p-signal-name { font-weight: 600; color: #a1a1aa; }
+
+  /* Road tabs */
+  .p-tabs {
+    display: flex; padding: 0 16px; gap: 2px; background: #13141b;
+  }
+  .p-tab {
+    padding: 8px 10px; font-size: 11px; color: #71717a; border: none; background: none;
+    border-bottom: 2px solid transparent;
+  }
+  .p-tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+
+  /* Road canvas */
+  .p-road {
+    padding: 8px 16px;
+  }
+  .p-road-canvas {
+    width: 100%; height: 160px; background: #1a1b23;
+    border-radius: 8px; border: 1px solid #2a2b35;
+    position: relative; overflow: hidden;
+  }
+  .road-grid { padding: 8px; display: flex; gap: 2px; }
+  .road-col { display: flex; flex-direction: column; gap: 2px; }
+  .road-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: 700; color: #fff;
+  }
+  .road-dot.b { background: #dc2626; }
+  .road-dot.p { background: #2563eb; }
+  .road-dot.t { background: #16a34a; }
+  .road-dot.empty { background: transparent; }
+
+  /* Server & button */
+  .p-controls { padding: 8px 16px; }
+  .p-server {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 0 8px; font-size: 11px; color: #71717a;
+  }
+  .p-server-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+  .p-btn {
+    width: 100%; padding: 10px; border: none; border-radius: 8px;
+    background: #6366f1; color: #fff; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .p-hint { font-size: 10px; color: #f59e0b; text-align: center; margin-top: 4px; }
+
+  /* CTA */
+  .p-cta {
+    padding: 8px 16px 12px; text-align: center;
+  }
+  .p-cta-box {
+    background: linear-gradient(135deg, #1e1f2a, #2a2b35);
+    border: 1px dashed #3f3f46; border-radius: 8px; padding: 10px;
+  }
+  .p-cta-text { font-size: 11px; color: #71717a; margin-bottom: 6px; }
+  .p-cta-btn {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; border: none; border-radius: 6px;
+    padding: 5px 14px; font-size: 12px; font-weight: 600;
+  }
 
   /* ── Cursor ── */
   .cursor {
@@ -95,39 +197,29 @@
     z-index: 9999; pointer-events: none; opacity: 0;
   }
   .cursor svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7)); }
-
-  /* ── Click ripple ── */
   .click-ripple {
     position: absolute; width: 36px; height: 36px;
     border: 2.5px solid rgba(99,102,241,0.9); border-radius: 50%;
-    pointer-events: none; z-index: 9998; opacity: 0;
-    transform: scale(0);
+    pointer-events: none; z-index: 9998; opacity: 0; transform: scale(0);
   }
-  .click-ripple.animate {
-    animation: ripple 0.5s ease-out forwards;
-  }
-  @keyframes ripple {
-    0% { opacity: 1; transform: scale(0); }
-    100% { opacity: 0; transform: scale(2.5); }
-  }
+  .click-ripple.animate { animation: ripple .5s ease-out forwards; }
+  @keyframes ripple { 0%{opacity:1;transform:scale(0)} 100%{opacity:0;transform:scale(2.5)} }
 
   /* ── Step bar ── */
   .step-bar {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    height: 70px;
+    position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
     background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.95) 50%);
-    display: flex; align-items: center; justify-content: center;
-    gap: 20px; z-index: 500;
+    display: flex; align-items: center; justify-content: center; gap: 20px; z-index: 500;
   }
-  .step-dots { display: flex; gap: 10px; align-items: center; }
+  .step-dots { display: flex; gap: 10px; }
   .step-dot {
     width: 10px; height: 10px; border-radius: 50%;
-    background: #3a3a4d; transition: all 0.4s;
+    background: #3a3a4d; transition: all .4s;
   }
   .step-dot.active { background: #6366f1; transform: scale(1.4); box-shadow: 0 0 12px rgba(99,102,241,0.6); }
   .step-dot.done { background: #22c55e; }
   .step-text {
-    color: white; font-size: 16px; font-weight: 700;
+    color: #fff; font-size: 16px; font-weight: 700;
     min-width: 380px; text-align: center;
     text-shadow: 0 2px 8px rgba(0,0,0,0.5);
   }
@@ -137,60 +229,120 @@
     background: #6366f1; font-size: 13px;
   }
 
-  /* ── Connecting arrow between phone and popup ── */
-  .connect-arrow {
-    position: absolute; top: 50%; left: 448px; z-index: 5;
-    width: 120px; height: 2px;
-    opacity: 0; transition: opacity 0.5s;
+  /* ── Arrow hint ── */
+  .arrow-hint {
+    position: absolute; z-index: 15; opacity: 0; transition: opacity .5s;
+    color: #fbbf24; font-size: 14px; font-weight: 700;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+    display: flex; align-items: center; gap: 6px;
   }
-  .connect-arrow.show { opacity: 1; }
-  .connect-arrow-line {
-    width: 100%; height: 2px; background: linear-gradient(90deg, #6366f1, #ec4899);
-  }
-  .connect-arrow-head {
-    position: absolute; right: -6px; top: -5px;
-    width: 0; height: 0;
-    border-left: 10px solid #ec4899;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-  }
+  .arrow-hint.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-<!-- Phone with game -->
-<div class="phone-frame" id="phoneFrame">
-  <img class="game-img" src="demo-game.png" alt="Game">
-</div>
+<!-- Phone -->
+<div class="phone"><img src="demo-game.png" alt="Game"></div>
 
-<!-- Region overlay on phone -->
+<!-- Region overlay -->
 <div class="region-overlay" id="regionOverlay">
-  <div class="region-banner">拖曳選取路子區域 — ESC 取消</div>
+  <div class="region-banner">Drag to select road area &mdash; ESC to cancel</div>
   <div class="region-box" id="regionBox"></div>
 </div>
 
 <!-- Arrow hint -->
-<div class="arrow-hint" id="arrowHint">
-  <div class="arrow-hint-text" style="left:100px; top:545px;">選取路子區域</div>
+<div class="arrow-hint" id="arrowHint" style="left:140px;top:490px;">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+  Select this area
 </div>
-
-<!-- Connecting arrow -->
-<div class="connect-arrow" id="connectArrow">
-  <div class="connect-arrow-line"></div>
-  <div class="connect-arrow-head"></div>
-</div>
-
-<!-- Popup images -->
-<img class="popup-img" id="popupEmpty" src="demo-popup-empty.png" alt="Popup Empty">
-<img class="popup-img" id="popupResult" src="demo-popup-result.png" alt="Popup Result">
 
 <!-- Toast -->
 <div class="toast" id="toast">Region saved!</div>
 
+<!-- ── Popup: Empty state ── -->
+<div class="popup-frame" id="popupEmpty">
+  <div class="p-header">
+    <div class="p-header-left">
+      <span class="p-title">RoadAnalyzer</span>
+    </div>
+    <div class="p-icon-btn">&#9881;</div>
+  </div>
+  <div class="p-stats">
+    <div class="p-stat"><span class="p-stat-label">Total</span><span class="p-stat-value">0</span></div>
+    <div class="p-stat"><span class="p-stat-label">Banker</span><span class="p-stat-value" style="color:#ef4444;">0</span></div>
+    <div class="p-stat"><span class="p-stat-label">Player</span><span class="p-stat-value" style="color:#3b82f6;">0</span></div>
+    <div class="p-stat"><span class="p-stat-label">Tie</span><span class="p-stat-value" style="color:#22c55e;">0</span></div>
+  </div>
+  <div class="p-tabs">
+    <button class="p-tab active">Big Road</button>
+    <button class="p-tab">Bead Plate</button>
+    <button class="p-tab">Big Eye Boy</button>
+    <button class="p-tab">Small Road</button>
+    <button class="p-tab">Cockroach Pig</button>
+  </div>
+  <div class="p-road"><div class="p-road-canvas"></div></div>
+  <div class="p-controls">
+    <div class="p-server"><div class="p-server-dot"></div><span>Server: ready</span></div>
+    <button class="p-btn" id="selectBtn">Select Region (on page)</button>
+    <div class="p-hint">Please select the complete road chart, otherwise detection may fail.</div>
+  </div>
+  <div class="p-cta">
+    <div class="p-cta-box">
+      <div class="p-cta-text">Enjoying RoadAnalyzer?</div>
+      <button class="p-cta-btn">Upgrade to Premium</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Popup: Result state ── -->
+<div class="popup-frame" id="popupResult">
+  <div class="p-header">
+    <div class="p-header-left">
+      <span class="p-title">RoadAnalyzer</span>
+      <span class="p-badge active">Road detected!</span>
+    </div>
+    <div class="p-icon-btn">&#9881;</div>
+  </div>
+  <div class="p-stats">
+    <div class="p-stat"><span class="p-stat-label">Total</span><span class="p-stat-value">24</span></div>
+    <div class="p-stat"><span class="p-stat-label">Banker</span><span class="p-stat-value" style="color:#ef4444;">10</span><span class="p-stat-pct">45.5%</span></div>
+    <div class="p-stat"><span class="p-stat-label">Player</span><span class="p-stat-value" style="color:#3b82f6;">12</span><span class="p-stat-pct">54.5%</span></div>
+    <div class="p-stat"><span class="p-stat-label">Tie</span><span class="p-stat-value" style="color:#22c55e;">2</span></div>
+  </div>
+  <div class="p-prediction show" id="predPanel">
+    <div class="p-pred-header">Prediction</div>
+    <div class="p-pred-body">
+      <div class="p-pred-circle">P</div>
+      <div class="p-pred-info">
+        <div class="p-pred-label">Next Prediction</div>
+        <div class="p-pred-conf">Confidence: 75%</div>
+        <div class="p-conf-bar"><div class="p-conf-fill" id="confFill"></div></div>
+      </div>
+    </div>
+    <div class="p-signal"><span class="p-signal-name">streak</span><span>Streak of 2, avg is 2.0</span></div>
+  </div>
+  <div class="p-tabs">
+    <button class="p-tab active">Big Road</button>
+    <button class="p-tab">Bead Plate</button>
+    <button class="p-tab">Big Eye Boy</button>
+    <button class="p-tab">Small Road</button>
+    <button class="p-tab">Cockroach Pig</button>
+  </div>
+  <div class="p-road">
+    <div class="p-road-canvas">
+      <div class="road-grid" id="roadGrid"></div>
+    </div>
+  </div>
+  <div class="p-controls">
+    <div class="p-server"><div class="p-server-dot"></div><span>Server: ready</span></div>
+    <button class="p-btn">Select Region (on page)</button>
+  </div>
+</div>
+
 <!-- Cursor -->
 <div class="cursor" id="cursor">
   <svg viewBox="0 0 24 24" fill="none">
-    <path d="M5 2l14 9.5L12 14l-2.5 8L5 2z" fill="white" stroke="#222" stroke-width="0.8"/>
+    <path d="M5 2l14 9.5L12 14l-2.5 8L5 2z" fill="white" stroke="#222" stroke-width=".8"/>
   </svg>
 </div>
 <div class="click-ripple" id="ripple"></div>
@@ -207,6 +359,30 @@
 </div>
 
 <script>
+// ── Build road grid ──
+const roadData = [
+  ['b','b','p','b','p','p','b','b','b','p','p','b','b','p','b','p'],
+  ['b','p','p','b','','p','b','b','','p','','b','p','','',''],
+  ['','p','','','','','b','','','','','','','','',''],
+  ['','','','','','','','','','','','','','','',''],
+  ['','','','','','','','','','','','','','','',''],
+  ['','','','','','','','','','','','','','','',''],
+];
+const gridEl = document.getElementById('roadGrid');
+for (let c = 0; c < 16; c++) {
+  const col = document.createElement('div');
+  col.className = 'road-col';
+  for (let r = 0; r < 6; r++) {
+    const d = document.createElement('div');
+    const v = roadData[r][c];
+    d.className = 'road-dot ' + (v || 'empty');
+    if (v) d.textContent = v.toUpperCase();
+    col.appendChild(d);
+  }
+  gridEl.appendChild(col);
+}
+
+// ── Animation ──
 const cursor = document.getElementById('cursor');
 const ripple = document.getElementById('ripple');
 const popupEmpty = document.getElementById('popupEmpty');
@@ -215,70 +391,45 @@ const regionOverlay = document.getElementById('regionOverlay');
 const regionBox = document.getElementById('regionBox');
 const toast = document.getElementById('toast');
 const arrowHint = document.getElementById('arrowHint');
-const connectArrow = document.getElementById('connectArrow');
+const confFill = document.getElementById('confFill');
 const stepText = document.getElementById('stepText');
 const dots = [0,1,2,3].map(i => document.getElementById('dot'+i));
 
-// Phone frame position: left=80, width=360, height=740
-// Phone top = (800 - 740) / 2 = 30
-const PHONE_LEFT = 80;
-const PHONE_TOP = 30;
-const PHONE_W = 360;
-const PHONE_H = 740;
+// Phone geometry
+const PH_L = 60, PH_T = 40, PH_W = 340, PH_H = 720;
+const SCALE = PH_W / 449;
+// Road area on game image: ~y:760-900 of 920px total
+const ROAD_Y = PH_T + Math.round(760 * SCALE);
+const ROAD_H = Math.round(140 * SCALE);
+const ROAD_X = PH_L + 5;
+const ROAD_W = PH_W - 10;
 
-// Game image is 449x920, scaled to fit 360x740
-// Scale factor: 360/449 = 0.8017
-const SCALE = PHONE_W / 449;
-
-// Road area on original image: approximately x:0-449, y:760-920
-// On screen: y = PHONE_TOP + 760 * SCALE = 30 + 609 = 639
-//            h = 160 * SCALE = 128
-const ROAD_X = PHONE_LEFT + 5;
-const ROAD_Y = PHONE_TOP + Math.round(760 * SCALE);
-const ROAD_W = PHONE_W - 10;
-const ROAD_H = Math.round(160 * SCALE);
-
-// Popup "select region" button on popup-empty image (402x562)
-// Button is at roughly y:390-430 in the image
-// Popup displayed at: right=140, height=600, so popup width ~ 402*(600/562) = 429
-// Popup left edge ~ 1280 - 140 - 429 = 711
-// Popup top ~ (800-600)/2 = 100
-const POPUP_H = 600;
-const POPUP_SCALE = POPUP_H / 562;
-const POPUP_W = Math.round(402 * POPUP_SCALE);
-const POPUP_LEFT = 1280 - 140 - POPUP_W;
-const POPUP_TOP = Math.round((800 - POPUP_H) / 2);
-// Button center: x ~ POPUP_LEFT + POPUP_W/2, y ~ POPUP_TOP + 410 * POPUP_SCALE
-const BTN_X = POPUP_LEFT + Math.round(POPUP_W / 2);
-const BTN_Y = POPUP_TOP + Math.round(400 * POPUP_SCALE);
+// Popup button position
+const popupRight = 100;
+const popupW = 380;
+const popupLeft = 1280 - popupRight - popupW; // 800
+const popupCenterX = popupLeft + popupW / 2;  // 990
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function moveCursor(x, y, dur = 700) {
+function moveCursor(x, y, dur=700) {
   return new Promise(resolve => {
-    cursor.style.transition = `left ${dur}ms cubic-bezier(0.4,0,0.2,1), top ${dur}ms cubic-bezier(0.4,0,0.2,1)`;
-    cursor.style.left = x + 'px';
-    cursor.style.top = y + 'px';
+    cursor.style.transition = `left ${dur}ms cubic-bezier(.4,0,.2,1), top ${dur}ms cubic-bezier(.4,0,.2,1)`;
+    cursor.style.left = x+'px'; cursor.style.top = y+'px';
     setTimeout(resolve, dur);
   });
 }
-
-function showCursor() { cursor.style.opacity = '1'; }
-function hideCursor() { cursor.style.opacity = '0'; }
-
-function clickAt(x, y) {
-  ripple.style.left = (x - 18) + 'px';
-  ripple.style.top = (y - 18) + 'px';
-  ripple.className = 'click-ripple';
-  void ripple.offsetWidth;
-  ripple.className = 'click-ripple animate';
+function showCursor() { cursor.style.opacity='1'; }
+function hideCursor() { cursor.style.opacity='0'; }
+function clickAt(x,y) {
+  ripple.style.left=(x-18)+'px'; ripple.style.top=(y-18)+'px';
+  ripple.className='click-ripple'; void ripple.offsetWidth;
+  ripple.className='click-ripple animate';
 }
-
 function setStep(n, text) {
-  dots.forEach((d, i) => {
-    d.className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+  dots.forEach((d,i) => {
+    d.className = 'step-dot' + (i<n?' done':i===n?' active':'');
   });
-  stepText.innerHTML = `<span class="step-num">${n + 1}</span>${text}`;
+  stepText.innerHTML = `<span class="step-num">${n+1}</span>${text}`;
 }
 
 async function runDemo() {
@@ -289,102 +440,83 @@ async function runDemo() {
   regionBox.classList.remove('show');
   toast.classList.remove('show');
   arrowHint.classList.remove('show');
-  connectArrow.classList.remove('show');
+  confFill.style.width = '0%';
   hideCursor();
-  cursor.style.transition = 'none';
-  cursor.style.left = '640px';
-  cursor.style.top = '400px';
+  cursor.style.transition='none';
+  cursor.style.left='640px'; cursor.style.top='400px';
 
   await wait(800);
 
-  // ── Step 1: Show popup ──
+  // Step 1: Open extension
   setStep(0, 'Open the RoadAnalyzer extension');
   showCursor();
-  await moveCursor(BTN_X, POPUP_TOP + 30, 500);
+  await moveCursor(popupCenterX, 300, 500);
   await wait(200);
   popupEmpty.classList.add('show');
   await wait(1800);
 
-  // ── Step 2: Click select region button ──
+  // Step 2: Click "Select Region"
   setStep(1, 'Click "Select Region"');
-  await moveCursor(BTN_X, BTN_Y, 600);
+  // Button is near bottom of empty popup — estimate y position
+  const btnY = 540;
+  await moveCursor(popupCenterX, btnY, 500);
   await wait(300);
-  clickAt(BTN_X, BTN_Y);
+  clickAt(popupCenterX, btnY);
   await wait(500);
   popupEmpty.classList.remove('show');
   await wait(400);
 
-  // ── Step 3: Drag select road area ──
-  setStep(2, 'Drag to select the road chart');
+  // Step 3: Drag to select
+  setStep(2, 'Drag to select the road chart area');
   regionOverlay.classList.add('show');
   arrowHint.classList.add('show');
   await wait(1000);
   arrowHint.classList.remove('show');
 
-  // Move to top-left of road area
-  const sx = ROAD_X;
-  const sy = ROAD_Y;
-  const ex = ROAD_X + ROAD_W;
-  const ey = ROAD_Y + ROAD_H;
-
-  await moveCursor(sx, sy, 500);
+  await moveCursor(ROAD_X, ROAD_Y, 500);
   await wait(200);
 
-  // Set region box start position (relative to region overlay)
-  const boxRelX = sx - PHONE_LEFT;
-  const boxRelY = sy - PHONE_TOP;
-  regionBox.style.left = boxRelX + 'px';
-  regionBox.style.top = boxRelY + 'px';
-  regionBox.style.width = '0px';
-  regionBox.style.height = '0px';
+  const bx = ROAD_X - PH_L, by = ROAD_Y - PH_T;
+  regionBox.style.left = bx+'px'; regionBox.style.top = by+'px';
+  regionBox.style.width = '0px'; regionBox.style.height = '0px';
   regionBox.classList.add('show');
 
-  const dragMs = 900;
-  const t0 = performance.now();
+  const sx = ROAD_X, sy = ROAD_Y, ex = ROAD_X+ROAD_W, ey = ROAD_Y+ROAD_H;
+  const t0 = performance.now(), dur = 900;
   await new Promise(resolve => {
     function frame(now) {
-      const p = Math.min((now - t0) / dragMs, 1);
-      const ease = 1 - Math.pow(1 - p, 3);
-      const cx = sx + (ex - sx) * ease;
-      const cy = sy + (ey - sy) * ease;
-      regionBox.style.width = (cx - sx) + 'px';
-      regionBox.style.height = (cy - sy) + 'px';
-      cursor.style.transition = 'none';
-      cursor.style.left = cx + 'px';
-      cursor.style.top = cy + 'px';
-      if (p < 1) requestAnimationFrame(frame); else resolve();
+      const p = Math.min((now-t0)/dur,1);
+      const e = 1-Math.pow(1-p,3);
+      const cx = sx+(ex-sx)*e, cy = sy+(ey-sy)*e;
+      regionBox.style.width = (cx-sx)+'px';
+      regionBox.style.height = (cy-sy)+'px';
+      cursor.style.transition='none';
+      cursor.style.left=cx+'px'; cursor.style.top=cy+'px';
+      if(p<1) requestAnimationFrame(frame); else resolve();
     }
     requestAnimationFrame(frame);
   });
 
-  await wait(500);
+  await wait(400);
   regionOverlay.classList.remove('show');
   regionBox.classList.remove('show');
   toast.classList.add('show');
   await wait(1200);
   toast.classList.remove('show');
 
-  // ── Step 4: View results ──
+  // Step 4: View results
   setStep(3, 'View predictions and analysis!');
   hideCursor();
   await wait(300);
-  connectArrow.classList.add('show');
   popupResult.classList.add('show');
+  await wait(500);
+  confFill.style.width = '75%';
   await wait(4000);
 
-  // Fade out
   popupResult.classList.remove('show');
-  connectArrow.classList.remove('show');
   await wait(1200);
   runDemo();
 }
-
-// Position the connect arrow dynamically
-const ca = document.getElementById('connectArrow');
-ca.style.top = '50%';
-ca.style.left = (PHONE_LEFT + PHONE_W + 8) + 'px';
-ca.style.width = (POPUP_LEFT - PHONE_LEFT - PHONE_W - 16) + 'px';
-ca.style.transform = 'translateY(-50%)';
 
 runDemo();
 </script>

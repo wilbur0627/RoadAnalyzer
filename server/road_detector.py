@@ -7,8 +7,9 @@ Then classify each grid cell by dominant color.
 
 When the screenshot contains multiple road types (Big Road, Bead Plate,
 Big Eye Boy, Small Road, Cockroach Pig), the detector automatically
-segments them by finding horizontal gaps and identifies the Big Road
-as the tallest segment with the largest circles.
+isolates the Big Road by detecting circular colored blobs, clustering
+them by diameter, and keeping only the largest cluster (Big Road circles
+are bigger than derived road circles).
 
 Tie handling: In standard baccarat Big Road, ties are shown as green
 lines/numbers overlaid on the previous B/P circle, not as separate cells.
@@ -20,73 +21,76 @@ import cv2
 import numpy as np
 from typing import List, Optional, Tuple
 
-# HSV color ranges (relaxed to handle blur bleeding)
+# HSV color ranges
 COLOR_RANGES = {
     "B": [  # Banker = Red
-        (np.array([0, 40, 40]), np.array([18, 255, 255])),
-        (np.array([155, 40, 40]), np.array([180, 255, 255])),
+        (np.array([0, 50, 50]), np.array([18, 255, 255])),
+        (np.array([155, 50, 50]), np.array([180, 255, 255])),
     ],
     "P": [  # Player = Blue
-        (np.array([85, 40, 40]), np.array([140, 255, 255])),
+        (np.array([85, 50, 50]), np.array([140, 255, 255])),
     ],
     "T": [  # Tie = Green
         (np.array([35, 40, 40]), np.array([85, 255, 255])),
     ],
 }
 
+# Relaxed ranges for grid cell classification (after heavy blur)
+COLOR_RANGES_RELAXED = {
+    "B": [
+        (np.array([0, 40, 40]), np.array([18, 255, 255])),
+        (np.array([155, 40, 40]), np.array([180, 255, 255])),
+    ],
+    "P": [
+        (np.array([85, 40, 40]), np.array([140, 255, 255])),
+    ],
+    "T": [
+        (np.array([35, 40, 40]), np.array([85, 255, 255])),
+    ],
+}
+
 BIG_ROAD_ROWS = 6
-# After blur, colored cells will have ~15-40% of pixels in color range.
-# Empty cells (white/gray background) will have <5%.
 MIN_COLOR_RATIO = 0.08
-# Green tie markers are small — even 2% of the cell area is significant
 MIN_TIE_RATIO = 0.02
-# Minimum gap (in pixels) between road segments to consider them separate
-MIN_SEGMENT_GAP = 4
-# Minimum fraction of colored pixels in a row to consider it non-empty
-ROW_COLOR_THRESHOLD = 0.005
+# Minimum circularity (0-1) to consider a blob as a road circle
+MIN_CIRCULARITY = 0.5
+# Minimum blob area (pixels) to consider
+MIN_BLOB_AREA = 10
 
 
-def color_pixel_count(hsv: np.ndarray, color: str) -> int:
+def color_pixel_count(hsv: np.ndarray, color: str, relaxed: bool = False) -> int:
     """Count pixels matching a color in an HSV region."""
+    ranges = COLOR_RANGES_RELAXED[color] if relaxed else COLOR_RANGES[color]
     total = 0
-    for lower, upper in COLOR_RANGES[color]:
+    for lower, upper in ranges:
         total += cv2.countNonZero(cv2.inRange(hsv, lower, upper))
     return total
 
 
 def classify_cell(hsv_cell: np.ndarray) -> Tuple[Optional[str], bool]:
-    """Classify a grid cell.
-
-    Returns (outcome, has_tie):
-      - outcome: 'B', 'P', or None (empty)
-      - has_tie: True if green tie marker detected on this cell
-    """
+    """Classify a grid cell. Uses relaxed color ranges (for blurred images)."""
     area = hsv_cell.shape[0] * hsv_cell.shape[1]
     if area == 0:
         return None, False
 
-    counts = {c: color_pixel_count(hsv_cell, c) for c in ["B", "P", "T"]}
+    counts = {c: color_pixel_count(hsv_cell, c, relaxed=True) for c in ["B", "P", "T"]}
 
-    # Check for B or P as the primary color
     bp_best = "B" if counts["B"] >= counts["P"] else "P"
     if counts[bp_best] < area * MIN_COLOR_RATIO:
-        # Not a B/P cell — could it be a standalone green (tie) cell?
-        # In most UIs ties overlay on B/P, so standalone green is rare
         if counts["T"] >= area * MIN_COLOR_RATIO:
             return "T", False
         return None, False
 
-    # It's a B/P cell — check if there's also a green tie marker
     has_tie = counts["T"] >= area * MIN_TIE_RATIO
     return bp_best, has_tie
 
 
 def classify_cell_unblurred(hsv_cell: np.ndarray) -> bool:
-    """Check for green tie markers on the UNBLURRED image (more sensitive)."""
+    """Check for green tie markers on the UNBLURRED image."""
     area = hsv_cell.shape[0] * hsv_cell.shape[1]
     if area == 0:
         return False
-    green_count = color_pixel_count(hsv_cell, "T")
+    green_count = color_pixel_count(hsv_cell, "T", relaxed=True)
     return green_count >= area * MIN_TIE_RATIO
 
 
@@ -95,113 +99,124 @@ def estimate_cell_size(img_h: int) -> int:
     return max(8, img_h // BIG_ROAD_ROWS)
 
 
-# ── Road Segment Isolation ──
+# ── Big Road Isolation via Circle Detection ──
 
 
-def _row_has_color(hsv_row: np.ndarray) -> bool:
-    """Check if a horizontal row of pixels has meaningful colored content."""
-    area = hsv_row.shape[0] * hsv_row.shape[1]
-    if area == 0:
-        return False
-    total = 0
-    for color in ["B", "P", "T"]:
-        total += color_pixel_count(hsv_row, color)
-    return total >= area * ROW_COLOR_THRESHOLD
+def _find_circles(image: np.ndarray) -> List[dict]:
+    """Find circular colored blobs (red/blue) in the image."""
+    blurred = cv2.GaussianBlur(image, (3, 3), 0)
+    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+
+    # Build color mask (red + blue only)
+    mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+    for color in ["B", "P"]:
+        for lower, upper in COLOR_RANGES[color]:
+            mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    circles = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < MIN_BLOB_AREA:
+            continue
+        perimeter = cv2.arcLength(cnt, True)
+        if perimeter == 0:
+            continue
+        circularity = 4 * np.pi * area / (perimeter * perimeter)
+        if circularity < MIN_CIRCULARITY:
+            continue
+
+        x, y, w, h = cv2.boundingRect(cnt)
+        diameter = min(w, h)
+        if diameter < 4:
+            continue
+
+        circles.append({
+            "diameter": diameter,
+            "x": x, "y": y, "w": w, "h": h,
+            "cx": x + w // 2, "cy": y + h // 2,
+        })
+
+    return circles
 
 
-def find_road_segments(image: np.ndarray) -> List[Tuple[int, int]]:
-    """Find vertically separated road segments by scanning for horizontal gaps.
+def _cluster_by_diameter(circles: List[dict]) -> List[List[dict]]:
+    """Cluster circles into groups by similar diameter.
 
-    Returns list of (y_start, y_end) tuples for each segment.
-    A gap is a consecutive run of rows with no colored pixels.
+    Uses a simple approach: sort by diameter, split when gap > 30% of current.
+    """
+    if not circles:
+        return []
+
+    sorted_circles = sorted(circles, key=lambda c: c["diameter"])
+    clusters = [[sorted_circles[0]]]
+
+    for c in sorted_circles[1:]:
+        prev_d = clusters[-1][-1]["diameter"]
+        # If this circle's diameter is >30% larger than previous, new cluster
+        if c["diameter"] > prev_d * 1.35:
+            clusters.append([c])
+        else:
+            clusters[-1].append(c)
+
+    return clusters
+
+
+def isolate_big_road(image: np.ndarray) -> Tuple[np.ndarray, int, int]:
+    """Isolate the Big Road region by finding circular blobs, clustering
+    by diameter, and cropping to the bounding box of the largest-diameter
+    cluster (Big Road has the biggest circles).
+
+    Returns (cropped_image, x_offset, y_offset).
     """
     img_h, img_w = image.shape[:2]
-    if img_h < 20:
-        return [(0, img_h)]
+    if img_h < 30 or img_w < 30:
+        return image, 0, 0
 
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    circles = _find_circles(image)
+    if len(circles) < 3:
+        return image, 0, 0
 
-    # Scan each row
-    row_active = []
-    for y in range(img_h):
-        row_active.append(_row_has_color(hsv[y:y+1, :]))
+    clusters = _cluster_by_diameter(circles)
+    if len(clusters) <= 1:
+        # Only one size group — either it's all Big Road, or can't distinguish
+        return image, 0, 0
 
-    # Find contiguous active segments
-    segments = []
-    in_segment = False
-    seg_start = 0
+    # The Big Road cluster is the one with the largest diameter circles
+    big_road_cluster = clusters[-1]  # last cluster = largest diameters
 
-    for y, active in enumerate(row_active):
-        if active and not in_segment:
-            seg_start = y
-            in_segment = True
-        elif not active and in_segment:
-            # Check if this gap is wide enough to be a real separator
-            gap_end = y
-            while gap_end < img_h and not row_active[gap_end]:
-                gap_end += 1
-            gap_size = gap_end - y
-            if gap_size >= MIN_SEGMENT_GAP:
-                segments.append((seg_start, y))
-                in_segment = False
+    # Need at least a few circles to be confident
+    if len(big_road_cluster) < 3:
+        # Maybe the largest cluster is just a few outliers — try second largest
+        if len(clusters) >= 2 and len(clusters[-2]) >= 5:
+            big_road_cluster = clusters[-2]
+        else:
+            return image, 0, 0
 
-    if in_segment:
-        segments.append((seg_start, img_h))
+    # Compute bounding box of the Big Road circles
+    x_min = min(c["x"] for c in big_road_cluster)
+    y_min = min(c["y"] for c in big_road_cluster)
+    x_max = max(c["x"] + c["w"] for c in big_road_cluster)
+    y_max = max(c["y"] + c["h"] for c in big_road_cluster)
 
-    # Filter out very thin segments (likely text labels, stats bars, etc.)
-    # A valid road segment should be at least 30px tall
-    segments = [(s, e) for s, e in segments if (e - s) >= 30]
+    # Add margin (half a circle diameter)
+    avg_d = sum(c["diameter"] for c in big_road_cluster) // len(big_road_cluster)
+    margin = avg_d // 2
 
-    if not segments:
-        return [(0, img_h)]
+    x_min = max(0, x_min - margin)
+    y_min = max(0, y_min - margin)
+    x_max = min(img_w, x_max + margin)
+    y_max = min(img_h, y_max + margin)
 
-    return segments
+    crop_w = x_max - x_min
+    crop_h = y_max - y_min
 
+    # Only crop if we actually filtered out a meaningful portion
+    if crop_w >= img_w * 0.95 and crop_h >= img_h * 0.95:
+        return image, 0, 0
 
-def pick_big_road_segment(
-    image: np.ndarray,
-    segments: List[Tuple[int, int]],
-) -> Tuple[int, int]:
-    """Pick the segment most likely to be the Big Road.
-
-    Heuristics:
-    1. Big Road has the tallest cells (largest circles) among all roads.
-       It's typically the tallest segment or near the top.
-    2. Big Road uses standard 6-row layout, so its height should be
-       divisible-ish by 6 with a reasonable cell size.
-    3. It should contain both red and blue colored cells.
-    """
-    if len(segments) == 1:
-        return segments[0]
-
-    best = segments[0]
-    best_score = -1
-
-    for seg_start, seg_end in segments:
-        seg_h = seg_end - seg_start
-        seg_img = image[seg_start:seg_end, :]
-
-        # Score 1: Height — Big Road is usually the tallest segment
-        height_score = seg_h
-
-        # Score 2: Has both red and blue — a road should have B and P cells
-        hsv = cv2.cvtColor(seg_img, cv2.COLOR_BGR2HSV)
-        area = seg_img.shape[0] * seg_img.shape[1]
-        b_count = color_pixel_count(hsv, "B")
-        p_count = color_pixel_count(hsv, "P")
-        has_both = 1.0 if (b_count > area * 0.005 and p_count > area * 0.005) else 0.3
-
-        # Score 3: Cell size reasonableness — Big Road cells are bigger than derived roads
-        estimated_cell = seg_h / BIG_ROAD_ROWS
-        # Big Road cells are typically 15-80px; derived roads use smaller cells
-        cell_score = 1.0 if estimated_cell >= 12 else 0.3
-
-        score = height_score * has_both * cell_score
-        if score > best_score:
-            best_score = score
-            best = (seg_start, seg_end)
-
-    return best
+    return image[y_min:y_max, x_min:x_max], x_min, y_min
 
 
 # ── Core Grid Detection ──
@@ -219,32 +234,24 @@ def detect_grid(
         if w > 0 and h > 0:
             image = image[y:y+h, x:x+w]
 
-    # ── Auto-segment: find and isolate the Big Road ──
-    segments = find_road_segments(image)
-    seg_y_offset = 0
-    if len(segments) > 1:
-        seg_start, seg_end = pick_big_road_segment(image, segments)
-        seg_y_offset = seg_start
-        image = image[seg_start:seg_end, :]
+    # ── Auto-isolate the Big Road ──
+    image, iso_x, iso_y = isolate_big_road(image)
 
     img_h, img_w = image.shape[:2]
 
     # Heavy Gaussian blur — merges text/outlines into solid blobs
-    # Kernel ~1/3 of estimated cell size, must be odd
     blur_k = max(3, (img_h // BIG_ROAD_ROWS) // 3)
     blur_k = blur_k if blur_k % 2 == 1 else blur_k + 1
     blurred = cv2.GaussianBlur(image, (blur_k, blur_k), 0)
 
     hsv_blurred = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-    # Also convert unblurred image for tie detection (green marks are small)
     hsv_raw = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     cell_size = estimate_cell_size(img_h)
     rows = max(1, img_h // cell_size)
     cols = max(1, img_w // cell_size)
 
-    # Scan grid, using center 60% of each cell to avoid border artifacts
-    margin = cell_size // 5  # skip 20% on each side
+    margin = cell_size // 5
     cells = []
     for col in range(cols):
         for row in range(rows):
@@ -258,7 +265,6 @@ def detect_grid(
 
             result, has_tie_blurred = classify_cell(hsv_blurred[y1:y2, x1:x2])
 
-            # Double-check tie on raw image (blur can wash out small green marks)
             if result in ("B", "P") and not has_tie_blurred:
                 has_tie_blurred = classify_cell_unblurred(hsv_raw[y1:y2, x1:x2])
 
@@ -279,16 +285,13 @@ def detect_grid(
         "grid_rows": rows,
         "grid_cols": cols,
         "cell_size": cell_size,
-        "segment_offset": seg_y_offset,
-        "segments_found": len(segments),
+        "iso_offset": (iso_x, iso_y),
+        "isolated": iso_x > 0 or iso_y > 0,
     }
 
 
 def grid_to_sequence(cells: List[dict]) -> List[str]:
-    """Column-by-column, top to bottom (Big Road reading order).
-
-    Ties are inserted after the B/P result they're attached to.
-    """
+    """Column-by-column, top to bottom (Big Road reading order)."""
     if not cells:
         return []
 
@@ -304,20 +307,14 @@ def grid_to_sequence(cells: List[dict]) -> List[str]:
         col_cells = sorted(columns[col_idx], key=lambda c: c["row"])
         for c in col_cells:
             sequence.append(c["result"])
-            # If this B/P cell has a tie marker, insert a T after it
             if c.get("has_tie"):
                 sequence.append("T")
 
     return sequence
 
 
-def generate_debug_image(image: np.ndarray, cells: List[dict], cell_size: int,
-                         segment_offset: int = 0, segments: List[Tuple[int, int]] = None) -> str:
-    """Draw detection grid overlay and return as base64 PNG data URL.
-
-    If segments were found, draw segment boundaries on the full image to show
-    which region was selected as Big Road.
-    """
+def generate_debug_image(image: np.ndarray, cells: List[dict], cell_size: int) -> str:
+    """Draw detection grid overlay and return as base64 PNG data URL."""
     vis = image.copy()
     color_map = {"B": (0, 0, 255), "P": (255, 0, 0), "T": (0, 180, 0)}
 
@@ -347,22 +344,12 @@ def analyze_image(
     if image is None:
         return {"error": "Failed to decode image", "cells": [], "sequence": []}
 
-    # Crop to region first
-    cropped = image
-    if region:
-        x, y, w, h = region
-        ih, iw = image.shape[:2]
-        x, y = max(0, min(x, iw)), max(0, min(y, ih))
-        w, h = min(w, iw - x), min(h, ih - y)
-        if w > 0 and h > 0:
-            cropped = image[y:y+h, x:x+w]
-
     grid = detect_grid(image, region)
     cells = grid["cells"]
     sequence = grid_to_sequence(cells)
 
-    # Generate debug image on the segmented (Big Road) portion
-    seg_offset = grid.get("segment_offset", 0)
+    # Generate debug image on the isolated Big Road portion
+    iso_x, iso_y = grid.get("iso_offset", (0, 0))
     if region:
         x, y, w, h = region
         ih, iw = image.shape[:2]
@@ -370,12 +357,15 @@ def analyze_image(
         w, h = min(w, iw - x), min(h, ih - y)
         if w > 0 and h > 0:
             debug_base = image[y:y+h, x:x+w]
+        else:
+            debug_base = image
     else:
         debug_base = image
 
-    if seg_offset > 0:
+    if iso_x > 0 or iso_y > 0:
         seg_h = grid["grid_rows"] * grid["cell_size"]
-        debug_base = debug_base[seg_offset:seg_offset+seg_h, :]
+        seg_w = grid["grid_cols"] * grid["cell_size"]
+        debug_base = debug_base[iso_y:iso_y+seg_h, iso_x:iso_x+seg_w]
 
     debug_img = generate_debug_image(debug_base, cells, grid["cell_size"])
 
@@ -391,7 +381,7 @@ def analyze_image(
             "cell_size": grid["cell_size"],
             "rows": grid["grid_rows"],
             "cols": grid["grid_cols"],
-            "segments_found": grid["segments_found"],
+            "isolated": grid["isolated"],
         },
         "debug_image": debug_img,
     }
