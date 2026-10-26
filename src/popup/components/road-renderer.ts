@@ -82,6 +82,37 @@ export function renderRoad(
       }
     }
   }
+
+  keepNewestInView(canvas, displayGrid.length * cellTotal + CELL_GAP);
+}
+
+/** Where each scroll container shows the newest column */
+const newestScroll = new WeakMap<HTMLElement, number>();
+/** Scroll containers whose user scrolled back to older columns */
+const scrolledBack = new WeakSet<HTMLElement>();
+
+/**
+ * The newest column is the last one drawn, not the canvas's right edge: a road
+ * shorter than the canvas is drawn from the left. Keep that column at the
+ * container's right edge (or the road's start in view, if it all fits) unless
+ * the user scrolled back.
+ */
+function keepNewestInView(canvas: HTMLCanvasElement, newestRight: number): void {
+  const container = canvas.parentElement;
+  if (!container) return;
+  if (!newestScroll.has(container)) {
+    container.addEventListener('scroll', () => {
+      if (container.scrollLeft >= (newestScroll.get(container) ?? 0) - 1) scrolledBack.delete(container);
+      else scrolledBack.add(container);
+    });
+  }
+  // The canvas's drawing area in the container's scroll coordinates, past padding and borders
+  const canvasLeft = canvas.getBoundingClientRect().left + canvas.clientLeft
+    - container.getBoundingClientRect().left - container.clientLeft + container.scrollLeft;
+  const paddingRight = parseFloat(getComputedStyle(container).paddingRight) || 0;
+  const target = Math.max(0, canvasLeft + newestRight + paddingRight - container.clientWidth);
+  newestScroll.set(container, target);
+  if (!scrolledBack.has(container)) container.scrollLeft = target;
 }
 
 function drawMainCell(

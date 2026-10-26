@@ -1,83 +1,47 @@
-import { DetectionEngine } from './detector/detection-engine';
 import { Overlay } from './overlay/overlay';
 import { GameResult } from '../roads/types';
-import { selectRegion } from './region-selector';
+import { validateGameResults } from '../shared/sanitize';
+import { initI18n } from '../i18n/i18n';
 
 /**
  * Content Script — injected automatically on all pages.
- * Detection and overlay only start after user triggers "Select Region" from popup.
+ * Shows the overlay once the service worker sends results for a region
+ * the user selected from the popup.
  */
 
 let overlay: Overlay | null = null;
-let engine: DetectionEngine | null = null;
 let currentResults: GameResult[] = [];
+
+// The overlay uses the language chosen in the popup, not always English
+const i18nReady = initI18n();
 
 function getOverlay(): Overlay {
   if (!overlay) overlay = new Overlay();
   return overlay;
 }
 
-function startDetection() {
-  if (engine) return; // already running
-
-  engine = new DetectionEngine(
-    (status) => {
-      if (overlay) overlay.updateStatus(status);
-      try {
-        chrome.runtime.sendMessage({ type: 'DETECTION_STATUS', status });
-      } catch { /* popup not open */ }
-    },
-    (result) => {
-      currentResults = result.results;
-      getOverlay().updateResults(result.results);
-      try {
-        chrome.runtime.sendMessage({
-          type: 'RESULTS_DETECTED',
-          results: result.results,
-          source: result.source,
-        });
-      } catch { /* popup not open */ }
-    },
-  );
-
-  engine.start();
-}
-
 // Listen for messages from popup / service worker
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
 
+  // Also tells the service worker that this tab already has a content script
   if (msg.type === 'GET_STATE') {
-    sendResponse({
-      results: currentResults,
-      status: engine ? 'watching' : 'idle',
-    });
-    return true;
-  }
-
-  if (msg.type === 'SELECT_REGION') {
-    selectRegion().then((region) => {
-      sendResponse({ region: region ?? null });
-    });
-    return true;
-  }
-
-  // Start detection when user has selected a region or triggered capture
-  if (msg.type === 'START_DETECTION') {
-    startDetection();
+    sendResponse({ results: currentResults });
     return;
   }
 
   // Handle screenshot analysis results from service worker
-  if (msg.type === 'RESULTS_DETECTED' && Array.isArray(msg.results)) {
+  if (msg.type === 'RESULTS_DETECTED' && validateGameResults(msg.results)) {
     currentResults = msg.results;
-    getOverlay().updateResults(msg.results, msg.debugImage ?? null);
+    const debugImage = msg.debugImage ?? null;
+    i18nReady.then(() => getOverlay().updateResults(currentResults, debugImage));
   }
-});
 
-// Check if a region was previously saved — if so, start detection automatically
-chrome.storage.sync.get('roadRegion').then((data) => {
-  if (data.roadRegion) {
-    startDetection();
+  // Captures keep failing (or work again); also shown on a page the tab moved on to
+  if (msg.type === 'CAPTURE_STATUS' && typeof msg.paused === 'boolean') {
+    const paused: boolean = msg.paused;
+    i18nReady.then(() => {
+      if (overlay || paused) getOverlay().setCapturePaused(paused);
+    });
   }
 });

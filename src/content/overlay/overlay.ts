@@ -1,11 +1,15 @@
 import { GameResult } from '../../roads/types';
 import { predict, Prediction, calculateStats } from '../../roads/prediction';
 import { RoadManager } from '../../roads/road-manager';
-import { getTier } from '../../shared/storage';
-import { Tier } from '../../shared/constants';
-import { DetectionStatus } from '../detector/detection-engine';
+import { getTier, getSavedRegion, toTier } from '../../shared/storage';
+import { Tier, STORAGE_KEYS, RoadRegion } from '../../shared/constants';
 import { el, clearChildren, safeNumber } from '../../shared/sanitize';
 import { t } from '../../i18n/i18n';
+import { pickPanelPosition, nearestClearCorner, overlaps, regionToCssRect, Rect } from './placement';
+
+type OverlayStatus = 'scanning' | 'found' | 'not_found' | 'watching';
+
+const OVERLAY_ID = 'road-analyzer-overlay';
 
 /**
  * Floating overlay panel injected into the page.
@@ -18,31 +22,89 @@ export class Overlay {
   private dragOffset = { x: 0, y: 0 };
   private boundMouseMove: (e: MouseEvent) => void;
   private boundMouseUp: () => void;
+  private boundResize: () => void;
   private cachedTier: Tier = Tier.FREE;
+  /** Latest results, kept to redraw when the tier changes */
+  private lastResults: { results: GameResult[]; debugImage: string | null } | null = null;
+  /** The road region in CSS pixels; the panel stays clear of it */
+  private region: Rect | null = null;
+  /** Once the user drags the panel, it stays where they put it, unless that covers the road */
+  private userMoved = false;
+  /** Folded down to its header because every corner covers the road; unfolded once there is room */
+  private autoMinimized = false;
 
   // Persistent DOM references for efficient updates
+  private noticeEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private predictionEl!: HTMLElement;
   private statsEl!: HTMLElement;
   private debugEl!: HTMLElement;
 
   constructor() {
+    // A content script left over from before an extension update can't be reached anymore;
+    // drop its panel so only this one shows
+    document.getElementById(OVERLAY_ID)?.remove();
+
     this.container = document.createElement('div');
-    this.container.id = 'road-analyzer-overlay';
+    this.container.id = OVERLAY_ID;
     this.boundMouseMove = this.onMouseMove.bind(this);
     this.boundMouseUp = this.onMouseUp.bind(this);
+    this.boundResize = () => this.keepClearOfRegion();
     this.applyStyles();
     this.buildDOM();
     this.setupDrag();
     document.body.appendChild(this.container);
+    window.addEventListener('resize', this.boundResize);
 
     // Cache tier once, update on storage change
-    getTier().then(tier => { this.cachedTier = tier; });
+    getTier().then(tier => this.setTier(tier));
+    getSavedRegion().then(region => this.setRegion(region));
     try {
       chrome.storage.onChanged.addListener((changes) => {
-        if (changes.tier) this.cachedTier = (changes.tier.newValue as Tier) ?? Tier.FREE;
+        if (changes.tier) this.setTier(toTier(changes.tier.newValue));
+        if (changes[STORAGE_KEYS.ROAD_REGION]) {
+          this.setRegion((changes[STORAGE_KEYS.ROAD_REGION].newValue as RoadRegion | undefined) ?? null);
+        }
       });
     } catch { /* not in extension context */ }
+  }
+
+  /** Results can arrive before the tier is read; redraw so Premium signals show from the start */
+  private setTier(tier: Tier): void {
+    this.cachedTier = tier;
+    this.render();
+  }
+
+  private setRegion(region: RoadRegion | null): void {
+    this.region = region ? regionToCssRect(region, window.devicePixelRatio) : null;
+    this.keepClearOfRegion();
+  }
+
+  /** Keep the panel off the road region, otherwise it ends up in the next capture and gets misread */
+  private keepClearOfRegion(): void {
+    if (this.autoMinimized) this.setMinimized(false);
+    const region = this.region;
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const size = () => ({ width: this.container.offsetWidth, height: this.container.offsetHeight });
+    const covers = (at: { left: number; top: number }) => region !== null && overlaps({ ...at, ...size() }, region);
+
+    const at = { left: this.container.offsetLeft, top: this.container.offsetTop };
+    if (this.userMoved && !covers(at)) return;
+    const corner = (this.userMoved && region && nearestClearCorner(region, size(), viewport, at))
+      || pickPanelPosition(region, size(), viewport);
+    this.moveTo(corner);
+    if (!covers(corner)) return;
+
+    // Every corner covers the road: fold the panel down to its header
+    this.setMinimized(true);
+    this.autoMinimized = true;
+    this.moveTo(pickPanelPosition(region, size(), viewport));
+  }
+
+  private moveTo({ left, top }: { left: number; top: number }): void {
+    this.container.style.left = `${left}px`;
+    this.container.style.top = `${top}px`;
+    this.container.style.right = 'auto';
   }
 
   private applyStyles(): void {
@@ -72,18 +134,22 @@ export class Overlay {
 
     // Body
     const body = el('div', { id: 'ra-body', style: 'padding:10px 12px;' });
+    this.noticeEl = el('div', { style: 'display:none;color:#f59e0b;text-align:center;padding:0 0 8px;' }, t('capture.paused'));
     this.statusEl = el('div', { style: 'color:#71717a;text-align:center;padding:8px;' }, t('detection.scanning'));
     this.predictionEl = el('div', { style: 'display:none;' });
     this.statsEl = el('div', { style: 'display:none;' });
     this.debugEl = el('div', { style: 'display:none;margin-top:8px;' });
 
-    body.append(this.statusEl, this.predictionEl, this.statsEl, this.debugEl);
+    body.append(this.noticeEl, this.statusEl, this.predictionEl, this.statsEl, this.debugEl);
     this.container.append(header, body);
   }
 
   private setupDrag(): void {
     this.container.addEventListener('mousedown', (e) => {
       if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+      // Otherwise, once the panel moves out from under the pointer, the browser can start
+      // dragging whatever page content (e.g. an image) was under it, which ends this drag
+      e.preventDefault();
       this.isDragging = true;
       this.dragOffset = {
         x: e.clientX - this.container.offsetLeft,
@@ -96,25 +162,47 @@ export class Overlay {
 
   private onMouseMove(e: MouseEvent): void {
     if (!this.isDragging) return;
+    this.userMoved = true;
     this.container.style.left = `${e.clientX - this.dragOffset.x}px`;
     this.container.style.top = `${e.clientY - this.dragOffset.y}px`;
     this.container.style.right = 'auto';
   }
 
-  private onMouseUp(): void { this.isDragging = false; }
+  private onMouseUp(): void {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    // A panel dropped on the road moves off it
+    this.keepClearOfRegion();
+  }
+
+  /** Captures keep failing, so the results shown have stopped updating: say so */
+  setCapturePaused(paused: boolean): void {
+    this.noticeEl.style.display = paused ? 'block' : 'none';
+    this.keepClearOfRegion();
+  }
 
   /** Update overlay with new detection results */
   updateResults(results: GameResult[], debugImage?: string | null): void {
+    this.lastResults = { results, debugImage: debugImage ?? null };
+    this.render();
+  }
+
+  private render(): void {
+    if (!this.lastResults) return;
+    const { results, debugImage } = this.lastResults;
     this.roadManager.setResults(results);
     const analysis = this.roadManager.analyze();
     const isPremium = this.cachedTier === Tier.PREMIUM;
-    const pred = predict(results, analysis.columns, analysis.bigEyeBoy, analysis.smallRoad, analysis.cockroachPig, isPremium);
+    const pred = predict(results, analysis.columns, isPremium);
     const stats = calculateStats(results, analysis.columns);
 
     this.updateStatus('found');
     this.updatePredictionDisplay(pred);
     this.updateStatsDisplay(stats);
-    this.updateDebugDisplay(debugImage ?? null);
+    this.updateDebugDisplay(debugImage);
+
+    // The panel's height just changed
+    this.keepClearOfRegion();
   }
 
   /** Show the debug detection grid image */
@@ -128,12 +216,14 @@ export class Overlay {
     this.debugEl.style.display = 'block';
     this.debugEl.appendChild(el('div', { style: 'font-size:10px;color:#71717a;margin-bottom:4px;' }, t('detection.preview')));
     const img = document.createElement('img');
+    // The panel grows once the image has loaded
+    img.addEventListener('load', () => this.keepClearOfRegion(), { once: true });
     img.src = debugImage;
     img.style.cssText = 'width:100%;border-radius:4px;border:1px solid #2a2b35;';
     this.debugEl.appendChild(img);
   }
 
-  updateStatus(status: DetectionStatus | string): void {
+  updateStatus(status: OverlayStatus): void {
     const statusTexts: Record<string, string> = {
       scanning: t('detection.scanning'),
       found: t('detection.found'),
@@ -146,13 +236,14 @@ export class Overlay {
 
   /** Safe DOM construction for prediction display */
   private updatePredictionDisplay(pred: Prediction | null): void {
-    if (!pred) {
-      this.predictionEl.style.display = 'none';
-      return;
-    }
-
     this.predictionEl.style.display = 'block';
     clearChildren(this.predictionEl);
+
+    if (!pred) {
+      // Too few hands: say so instead of predicting
+      this.predictionEl.appendChild(el('div', { style: 'color:#a1a1aa;text-align:center;padding:8px;' }, t('prediction.noData')));
+      return;
+    }
 
     const isBanker = pred.outcome === 'B';
     const color = isBanker ? '#ef4444' : '#3b82f6';
@@ -194,7 +285,14 @@ export class Overlay {
 
   private toggleMinimize(): void {
     const body = this.container.querySelector('#ra-body') as HTMLElement;
-    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    if (!body) return;
+    this.autoMinimized = false;
+    this.setMinimized(body.style.display !== 'none');
+  }
+
+  private setMinimized(minimized: boolean): void {
+    const body = this.container.querySelector('#ra-body') as HTMLElement;
+    if (body) body.style.display = minimized ? 'none' : 'block';
   }
 
   show(): void { this.container.style.display = 'block'; }
@@ -203,6 +301,7 @@ export class Overlay {
   destroy(): void {
     document.removeEventListener('mousemove', this.boundMouseMove);
     document.removeEventListener('mouseup', this.boundMouseUp);
+    window.removeEventListener('resize', this.boundResize);
     this.container.remove();
   }
 }

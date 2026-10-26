@@ -6,3 +6,7 @@ dist/
 .env
 *.zip
 screenshots/
+
+# Internal handoff notes — the repo is public
+handoff-*.md
+TODO.md

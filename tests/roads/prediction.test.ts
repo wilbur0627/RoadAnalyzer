@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { predict } from '../../src/roads/prediction';
+import { predict, signalLabel } from '../../src/roads/prediction';
 import { buildBigRoad } from '../../src/roads/big-road';
-import { buildBigEyeBoy, buildSmallRoad, buildCockroachPig } from '../../src/roads/derived-road';
 import { GameResult } from '../../src/roads/types';
 
 function r(...outcomes: string[]): GameResult[] {
@@ -10,10 +9,7 @@ function r(...outcomes: string[]): GameResult[] {
 
 function fullPredict(results: GameResult[], isPremium = false) {
   const { columns } = buildBigRoad(results);
-  const bigEyeBoy = buildBigEyeBoy(columns);
-  const smallRoad = buildSmallRoad(columns);
-  const cockroachPig = buildCockroachPig(columns);
-  return predict(results, columns, bigEyeBoy, smallRoad, cockroachPig, isPremium);
+  return predict(results, columns, isPremium);
 }
 
 describe('Prediction Engine', () => {
@@ -69,5 +65,44 @@ describe('Prediction Engine', () => {
     const results = r('B', 'B', 'B', 'B', 'B', 'B', 'B', 'B', 'P', 'B', 'B', 'B', 'B', 'B');
     const pred = fullPredict(results);
     expect(pred).not.toBeNull();
+  });
+
+  it('should need 10 hands before predicting, counting ties', () => {
+    // 8 Banker/Player hands give a streak signal; the 2 ties make it 10 hands
+    expect(fullPredict(r('B', 'B', 'P', 'P', 'B', 'B', 'P', 'P', 'T', 'T'))).not.toBeNull();
+    expect(fullPredict(r('B', 'B', 'P', 'P', 'B', 'B', 'P', 'P', 'T'))).toBeNull();
+  });
+
+  it('should scale confidence by the amount of data up to 30 hands', () => {
+    // A Banker-only shoe gives one unanimous signal, so confidence = 75 × min(1, hands / 30)
+    const bankerOnly = (hands: number) => fullPredict(r(...new Array(hands).fill('B')))!.confidence;
+    expect(bankerOnly(10)).toBe(25);
+    expect(bankerOnly(20)).toBe(50);
+    expect(bankerOnly(30)).toBe(75);
+    expect(bankerOnly(45)).toBe(75);
+  });
+});
+
+describe('signalLabel', () => {
+  it('should translate every signal name', () => {
+    expect(signalLabel('streak')).toBe('Streak Analysis');
+    expect(signalLabel('frequency')).toBe('Frequency');
+    expect(signalLabel('pattern_pingpong')).toBe('Pattern Match');
+    expect(signalLabel('pattern_zigzag')).toBe('Pattern Match');
+    expect(signalLabel('derived_consensus')).toBe('Derived Road Consensus');
+    expect(signalLabel('rhythm')).toBe('Rhythm');
+  });
+
+  it('should never show an internal id for a signal the engine produces', () => {
+    const shoes = [
+      r('B', 'P', 'B', 'P', 'B', 'P', 'B', 'P', 'B', 'P', 'B', 'P'),
+      r('B', 'B', 'P', 'P', 'B', 'B', 'P', 'P', 'B', 'B', 'P', 'P'),
+      r('B', 'B', 'B', 'P', 'P', 'P', 'B', 'B', 'B', 'P', 'P', 'P'),
+      r('B', 'B', 'B', 'B', 'B', 'B', 'B', 'B', 'P', 'B', 'B', 'B', 'B', 'B'),
+      r('B', 'P', 'P', 'B', 'B', 'B', 'P', 'B', 'B', 'P', 'P', 'P', 'P', 'B'),
+    ];
+    const names = new Set(shoes.flatMap(shoe => fullPredict(shoe, true)?.signals.map(s => s.name) ?? []));
+    expect(names.size).toBeGreaterThan(0);
+    for (const name of names) expect(signalLabel(name)).not.toBe(name);
   });
 });

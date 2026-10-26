@@ -1,11 +1,10 @@
 import { GameResult } from '../roads/types';
-import { DetectionStatus } from '../content/detector/detection-engine';
+import { RoadRegion } from './constants';
 
 /** Message types for communication between extension components */
 export type Message =
-  | { type: 'RESULTS_DETECTED'; results: GameResult[]; source?: string }
-  | { type: 'DETECTION_STATUS'; status: DetectionStatus }
+  | { type: 'RESULTS_DETECTED'; results: GameResult[]; source?: string; debugImage?: string | null }
+  | { type: 'CAPTURE_AND_ANALYZE'; region: RoadRegion }
+  | { type: 'CAPTURE_STATUS'; paused: boolean }
   | { type: 'GET_STATE' }
-  | { type: 'SERVER_HEALTH' }
-  | { type: 'SELECT_REGION' }
-  | { type: 'ANALYZE_SCREENSHOT'; dataUrl: string; region?: unknown };
+  | { type: 'SERVER_HEALTH' };

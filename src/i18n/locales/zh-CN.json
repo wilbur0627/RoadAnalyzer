@@ -21,6 +21,8 @@
   "prediction.streakAnalysis": "连庄/连闲分析",
   "prediction.patternMatch": "模式匹配",
   "prediction.derivedConsensus": "衍生路共识",
+  "prediction.frequency": "频率分析",
+  "prediction.rhythm": "节奏分析",
   "prediction.noData": "数据不足，无法预测",
 
   "signal.streakExceedsAvg": "连续 {0} 局，超过平均值（{1}）",
@@ -60,6 +62,7 @@
   "capture.regionHint": "请选取完整路图，否则可能检测失败。",
   "capture.dragHint": "拖拽选取路子区域 — ESC 取消",
   "capture.regionSaved": "已保存区域：{0}×{1}px",
+  "capture.paused": "截取已暂停，请重新选取区域",
   "upload.hint": "上传或粘贴 (Ctrl+V) 大路截图",
 
   "settings.title": "设置",
@@ -70,7 +73,7 @@
   "settings.enterLicenseKey": "输入授权密钥...",
   "settings.activate": "激活",
   "settings.upgradePlans": "升级方案",
-  "tier.premiumDesc": "游戏记录、进阶预测信号、衍生路共识分析、数据导出",
+  "tier.premiumDesc": "进阶预测信号：模式匹配、衍生路共识、节奏分析",
 
   "tier.free": "免费版",
   "tier.premium": "进阶版",
@@ -93,6 +96,7 @@
   "help.step4": "4. 查看预测结果、统计数据及五条衍生路",
   "help.step5": "",
   "help.tip": "提示：请确保框选范围包含完整路图，数据越多预测越准确。",
+  "help.newShoe": "从新的一靴开始截取，才能记录整靴牌。",
 
   "disclaimer.text": "本工具仅供娱乐用途，不构成任何投注建议。赌博有风险，请量力而为。",
   "disclaimer.understand": "我了解"

@@ -92,6 +92,48 @@ describe('Big Road (大路)', () => {
     expect(grid[1][1]?.color).toBe('blue');
   });
 
+  it('should turn a dragon tail right along the bottom row', () => {
+    const { grid } = buildBigRoad(r('B', 'B', 'B', 'B', 'B', 'B', 'B', 'B'));
+    for (let row = 0; row < 6; row++) expect(grid[0][row]?.color).toBe('red');
+    expect(grid[1][5]?.color).toBe('red');
+    expect(grid[2][5]?.color).toBe('red');
+    expect(grid.length).toBe(3);
+  });
+
+  it('should start the next column right after the previous start, not after its tail', () => {
+    // 8 Banker (tail reaches column 2), then Player, then Banker
+    const { grid } = buildBigRoad(r('B', 'B', 'B', 'B', 'B', 'B', 'B', 'B', 'P', 'B'));
+    expect(grid[1][0]?.color).toBe('blue');
+    expect(grid[2][0]?.color).toBe('red');
+    expect(grid[2][5]?.color).toBe('red'); // still the first column's tail
+    expect(grid.length).toBe(3);
+  });
+
+  it('should turn early when the column below is taken by a dragon tail', () => {
+    // 8 Banker, then 7 Player: the Player column meets the Banker tail at row 5
+    const results = r(...new Array(8).fill('B'), ...new Array(7).fill('P'));
+    const { grid } = buildBigRoad(results);
+    for (let row = 0; row < 5; row++) expect(grid[1][row]?.color).toBe('blue');
+    expect(grid[1][5]?.color).toBe('red');
+    expect(grid[2][4]?.color).toBe('blue');
+    expect(grid[3][4]?.color).toBe('blue');
+    expect(grid[2][5]?.color).toBe('red');
+  });
+
+  it('should move a start that an earlier tail took on the top row', () => {
+    // Nested tails of 8, 7, 6, 5, 4, 3: the 3-long column has to turn on row 0,
+    // so it takes the next column's start cell
+    const lengths = [8, 7, 6, 5, 4, 3, 1];
+    const results = r(...lengths.flatMap((len, i) => new Array(len).fill(i % 2 === 0 ? 'B' : 'P')));
+    const { grid } = buildBigRoad(results);
+    // The 3-long Player column: (5,0), then right along row 0 to (6,0), (7,0)
+    expect(grid[5][0]?.color).toBe('blue');
+    expect(grid[6][0]?.color).toBe('blue');
+    expect(grid[7][0]?.color).toBe('blue');
+    // The last Banker starts at the first free top cell
+    expect(grid[8][0]?.color).toBe('red');
+  });
+
   it('should preserve pair information', () => {
     const results: GameResult[] = [
       { outcome: 'B', bankerPair: true, playerPair: false },

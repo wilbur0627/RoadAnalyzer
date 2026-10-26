@@ -1,21 +1,25 @@
 import { initI18n, t, getLocale, setLocale, Locale } from '../i18n/i18n';
 import { RoadManager } from '../roads/road-manager';
-import { predict, Prediction, calculateStats } from '../roads/prediction';
+import { predict, Prediction, calculateStats, signalLabel } from '../roads/prediction';
 import { renderRoad } from './components/road-renderer';
 import { RoadAnalysis, GameResult, Outcome } from '../roads/types';
-import { Tier, STORAGE_KEYS } from '../shared/constants';
-import { getTier, isDisclaimerAccepted, acceptDisclaimer } from '../shared/storage';
+import { Tier, STORAGE_KEYS, CAPTURE_PAUSE_AFTER_FAILURES } from '../shared/constants';
+import {
+  getTier, isDisclaimerAccepted, acceptDisclaimer, getLastAnalysis, getRoadHistory, getCaptureFailures,
+} from '../shared/storage';
 import { initAds, removeAds } from '../monetization/ads';
 import { activateLicense, getPaymentLink } from '../monetization/license';
-import { el, clearChildren, safeNumber } from '../shared/sanitize';
+import { el, clearChildren, safeNumber, validateGameResults, sequenceToResults } from '../shared/sanitize';
 
 // State
 const roadManager = new RoadManager();
 let currentRoad: keyof RoadAnalysis = 'bigRoad';
 let currentTier: Tier = Tier.FREE;
 let analysis: RoadAnalysis | null = null;
-let serverAvailable = false;
+let serverStatus: 'checking' | 'online' | 'offline' = 'checking';
 let activeTabId: number | null = null;
+/** Results broadcast while the popup was opening are newer than the stored record */
+let receivedLiveResults = false;
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
@@ -36,14 +40,42 @@ async function init() {
     if (tab?.id) activeTabId = tab.id;
   } catch { /* ignore */ }
 
-  // Check server health
-  try {
-    const resp = await chrome.runtime.sendMessage({ type: 'SERVER_HEALTH' });
-    serverAvailable = resp?.ok ?? false;
-  } catch { /* ignore */ }
-  updateServerStatus();
+  // The health check can take up to 10 seconds, so don't hold up the results
+  checkServerHealth();
+
+  // Show the recorded hands right away instead of waiting for the next capture;
+  // the preview shows the latest frame
+  const [history, last, failures] = await Promise.all([
+    getRoadHistory().catch(() => null), getLastAnalysis(), getCaptureFailures(),
+  ]);
+  const recorded = sequenceToResults(history?.hands.split('') ?? []);
+  if (!receivedLiveResults && recorded && recorded.length > 0) {
+    roadManager.setResults(recorded);
+    setDetectionStatus('found');
+    updateDebugPreview(last?.data.debug_image ?? null);
+  }
+  if (failures >= CAPTURE_PAUSE_AFTER_FAILURES) showCapturePaused(true);
 
   updateDisplay();
+}
+
+/** Captures keep failing, so the results shown have stopped updating */
+function showCapturePaused(paused: boolean) {
+  if (paused) {
+    showStatus(t('capture.paused'), 'error');
+  } else if ($('#status-message').textContent === t('capture.paused')) {
+    $('#status-message').className = 'status-message hidden';
+  }
+}
+
+async function checkServerHealth() {
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: 'SERVER_HEALTH' });
+    serverStatus = resp?.ok ? 'online' : 'offline';
+  } catch {
+    serverStatus = 'offline';
+  }
+  updateServerStatus();
 }
 
 function showDisclaimer() {
@@ -76,6 +108,7 @@ function setupEventListeners() {
       await chrome.scripting.executeScript({
         target: { tabId: activeTabId },
         func: injectRegionSelector,
+        args: [t('capture.dragHint'), t('capture.regionSaved')],
       });
     } catch (e) {
       showStatus(`Cannot inject on this page: ${e instanceof Error ? e.message : String(e)}`, 'error');
@@ -137,23 +170,23 @@ function setupEventListeners() {
   try {
     chrome.runtime.onMessage.addListener((msg, sender) => {
       if (sender.id !== chrome.runtime.id) return;
-      if (msg.type === 'RESULTS_DETECTED' && Array.isArray(msg.results)) {
+      if (msg.type === 'RESULTS_DETECTED' && validateGameResults(msg.results)) {
+        receivedLiveResults = true;
         roadManager.setResults(msg.results);
         updateDisplay();
         setDetectionStatus('found');
         updateDebugPreview(msg.debugImage ?? null);
-      } else if (msg.type === 'DETECTION_STATUS' && typeof msg.status === 'string') {
-        setDetectionStatus(msg.status);
       }
+      if (msg.type === 'CAPTURE_STATUS' && typeof msg.paused === 'boolean') showCapturePaused(msg.paused);
     });
   } catch { /* not in extension context */ }
 }
 
 /**
  * This function is injected directly into the active tab via chrome.scripting.executeScript.
- * It must be self-contained — no imports, no closures over popup scope.
+ * It must be self-contained — no imports, no closures over popup scope; texts come in as args.
  */
-function injectRegionSelector() {
+function injectRegionSelector(dragHint: string, savedTemplate: string) {
   // Prevent duplicate injection
   if (document.getElementById('__ra_region_overlay')) return;
 
@@ -171,7 +204,7 @@ function injectRegionSelector() {
     borderRadius: '8px', fontSize: '14px', fontFamily: 'system-ui, sans-serif',
     zIndex: '2147483647', pointerEvents: 'none', whiteSpace: 'nowrap',
   });
-  banner.textContent = '拖曳選取路子區域 — ESC 取消';
+  banner.textContent = dragHint;
   overlay.appendChild(banner);
 
   const box = document.createElement('div');
@@ -226,20 +259,31 @@ function injectRegionSelector() {
     // Save to chrome.storage.sync
     chrome.storage.sync.set({ roadRegion: region });
 
-    // Trigger screenshot capture + analysis
-    chrome.runtime.sendMessage({ type: 'CAPTURE_AND_ANALYZE', region });
+    // Wait two frames so the dimmed overlay is gone from the tab before it is captured
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      // Trigger screenshot capture + analysis
+      chrome.runtime.sendMessage({ type: 'CAPTURE_AND_ANALYZE', region });
 
-    // Show confirmation
-    const toast = document.createElement('div');
-    Object.assign(toast.style, {
-      position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-      background: '#22c55e', color: '#fff', padding: '10px 20px',
-      borderRadius: '8px', fontSize: '14px', fontFamily: 'system-ui, sans-serif',
-      zIndex: '2147483647',
-    });
-    toast.textContent = `Region saved: ${w}×${h}px`;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
+      // Show the confirmation in the larger free band above or below the region,
+      // so it stays out of the capture
+      const toastHeight = 40;
+      const spaceAbove = y;
+      const spaceBelow = window.innerHeight - (y + h);
+      const top = spaceAbove >= spaceBelow
+        ? Math.max(8, (spaceAbove - toastHeight) / 2)
+        : y + h + Math.max(8, (spaceBelow - toastHeight) / 2);
+
+      const toast = document.createElement('div');
+      Object.assign(toast.style, {
+        position: 'fixed', top: `${top}px`, left: '50%', transform: 'translateX(-50%)',
+        background: '#22c55e', color: '#fff', padding: '10px 20px',
+        borderRadius: '8px', fontSize: '14px', fontFamily: 'system-ui, sans-serif',
+        zIndex: '2147483647', pointerEvents: 'none',
+      });
+      toast.textContent = savedTemplate.replace('{0}', String(w)).replace('{1}', String(h));
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }));
   });
 
   document.addEventListener('keydown', onKeyDown);
@@ -268,27 +312,38 @@ function updateStats() {
 
 function updatePrediction() {
   if (!analysis) return;
-  const pred = predict(roadManager.getResults(), analysis.columns, analysis.bigEyeBoy, analysis.smallRoad, analysis.cockroachPig, currentTier === Tier.PREMIUM);
+  const results = roadManager.getResults();
+  const pred = predict(results, analysis.columns, currentTier === Tier.PREMIUM);
   const panel = $('#prediction-panel');
-  if (!pred) { panel.classList.add('hidden'); return; }
-  panel.classList.remove('hidden');
-
   const outcomeEl = $('#prediction-outcome');
+  const confEl = $('#prediction-confidence');
+  const signalsEl = $('#prediction-signals');
+  clearChildren(confEl);
+  clearChildren(signalsEl);
+
+  if (!pred) {
+    // Too few hands: say so instead of predicting; with no results at all, show nothing
+    panel.classList.toggle('hidden', results.length === 0);
+    outcomeEl.classList.add('hidden');
+    signalsEl.classList.add('hidden');
+    confEl.appendChild(el('div', { style: 'font-size:12px;color:#a1a1aa;' }, t('prediction.noData')));
+    return;
+  }
+  panel.classList.remove('hidden');
+  outcomeEl.classList.remove('hidden');
+  signalsEl.classList.remove('hidden');
+
   outcomeEl.className = `prediction-outcome ${pred.outcome === 'B' ? 'banker' : 'player'}`;
   outcomeEl.textContent = pred.outcome === 'B' ? t('outcome.bankerShort') : t('outcome.playerShort');
 
-  const confEl = $('#prediction-confidence');
-  clearChildren(confEl);
   confEl.append(
     el('div', { style: 'font-size:13px;font-weight:600;color:#e4e4e7;' }, t('prediction.confidence', safeNumber(pred.confidence))),
     (() => { const bar = el('div', { class: 'confidence-bar' }); bar.appendChild(el('div', { class: `confidence-fill ${pred.outcome === 'B' ? 'banker' : 'player'}`, style: `width:${safeNumber(pred.confidence)}%` })); return bar; })(),
   );
 
-  const signalsEl = $('#prediction-signals');
-  clearChildren(signalsEl);
   for (const s of pred.signals) {
     const row = el('div', { class: 'signal' });
-    row.appendChild(el('span', { class: 'signal-name' }, String(s.name)));
+    row.appendChild(el('span', { class: 'signal-name' }, signalLabel(s.name)));
     row.appendChild(el('span', {}, String(s.description)));
     signalsEl.appendChild(row);
   }
@@ -326,8 +381,9 @@ function setDetectionStatus(status: string) {
 function updateServerStatus() {
   const dot = $('#server-dot');
   const label = $('#server-label');
-  dot.className = `server-dot ${serverAvailable ? 'online' : 'offline'}`;
-  label.textContent = serverAvailable ? t('server.ready') : t('server.offline');
+  const labels = { checking: t('server.checking'), online: t('server.ready'), offline: t('server.offline') };
+  dot.className = `server-dot ${serverStatus === 'checking' ? '' : serverStatus}`;
+  label.textContent = labels[serverStatus];
 }
 
 function updateTierDisplay() {
@@ -355,7 +411,7 @@ function updatePricingLinks() {
   left.appendChild(el('span', { style: 'font-size:12px;font-weight:600;' }, t('tier.premium')));
   left.appendChild(el('span', { style: 'font-size:10px;color:#71717a;' }, t('tier.premiumDesc')));
   a.appendChild(left);
-  a.appendChild(el('span', { style: `font-size:12px;color:#eab308;font-weight:600;white-space:nowrap;margin-left:8px;` }, '$4.99/mo'));
+  a.appendChild(el('span', { style: `font-size:12px;color:#eab308;font-weight:600;white-space:nowrap;margin-left:8px;` }, '$9.99/mo'));
   pricingEl.appendChild(a);
 }
 

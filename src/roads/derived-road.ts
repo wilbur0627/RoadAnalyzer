@@ -1,7 +1,5 @@
 import { BigRoadColumn, DerivedRoadCell, DerivedRoadGrid } from './types';
-import { ROAD_CONFIG } from '../shared/constants';
-
-const { MAX_ROWS } = ROAD_CONFIG;
+import { layoutStreaks } from './layout';
 
 /**
  * Build a derived road from Big Road columns.
@@ -13,17 +11,18 @@ const { MAX_ROWS } = ROAD_CONFIG;
  * - Cockroach Pig: offset = 3 (compare with n-3)
  *
  * Rules:
- * - The derived road starts when there are enough columns in the Big Road
- *   (offset + 1 columns needed for the first entry).
- * - For each new cell added to the Big Road:
+ * - The derived road starts at the Big Road cell in column `offset`, row 1
+ *   (or column `offset + 1`, row 0 if that column has a single cell).
+ * - For each Big Road cell from there on:
  *   - If the cell starts a NEW column in the Big Road:
  *     Compare the length of the previous column with the column `offset` columns before it.
  *     If equal length → RED (consistent), otherwise → BLUE (chaotic).
  *   - If the cell CONTINUES an existing column:
- *     Check if the comparison column (current_col - offset) has a cell at the same depth.
- *     If yes → RED, if no → BLUE.
+ *     Look at the comparison column (current_col - offset) at the same depth.
+ *     It has a cell there → RED; it ended exactly one row above → BLUE;
+ *     it ended two or more rows above → RED.
  */
-export function buildDerivedRoad(columns: BigRoadColumn[], offset: number): DerivedRoadGrid {
+export function derivedRoadEntries(columns: BigRoadColumn[], offset: number): DerivedRoadCell[] {
   const entries: DerivedRoadCell[] = [];
 
   if (columns.length <= offset) return [];
@@ -48,38 +47,26 @@ export function buildDerivedRoad(columns: BigRoadColumn[], offset: number): Deri
         const compareColIdx = colIdx - offset;
         if (compareColIdx < 0) continue;
 
-        const compareCol = columns[compareColIdx];
-        // Check if the comparison column has a cell at the same depth
-        isRed = cellIdx < compareCol.cells.length;
+        // Blue only when the comparison column's last cell is one row above this one
+        isRed = cellIdx !== columns[compareColIdx].cells.length;
       }
 
       entries.push({ color: isRed ? 'red' : 'blue' });
     }
   }
 
-  // Lay out entries into a grid (same as bead plate: fill top-to-bottom, left-to-right)
-  return entriesToGrid(entries);
+  return entries;
 }
 
-function entriesToGrid(entries: DerivedRoadCell[]): DerivedRoadGrid {
-  if (entries.length === 0) return [];
-
-  const totalCols = Math.ceil(entries.length / MAX_ROWS);
-  const grid: DerivedRoadGrid = [];
-
-  for (let col = 0; col < totalCols; col++) {
-    const column: (DerivedRoadCell | null)[] = new Array(MAX_ROWS).fill(null);
-
-    for (let row = 0; row < MAX_ROWS; row++) {
-      const idx = col * MAX_ROWS + row;
-      if (idx >= entries.length) break;
-      column[row] = entries[idx];
-    }
-
-    grid.push(column);
+/** Lay out a derived road like the Big Road: same colors stack down, a new color starts a new column */
+export function buildDerivedRoad(columns: BigRoadColumn[], offset: number): DerivedRoadGrid {
+  const streaks: DerivedRoadCell[][] = [];
+  for (const entry of derivedRoadEntries(columns, offset)) {
+    const last = streaks[streaks.length - 1];
+    if (last && last[0].color === entry.color) last.push(entry);
+    else streaks.push([entry]);
   }
-
-  return grid;
+  return layoutStreaks(streaks);
 }
 
 /** Big Eye Boy Road (大眼仔路) — offset 1 */

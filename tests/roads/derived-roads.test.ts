@@ -1,11 +1,52 @@
 import { describe, it, expect } from 'vitest';
 import { buildBigRoad } from '../../src/roads/big-road';
-import { buildBigEyeBoy, buildSmallRoad, buildCockroachPig } from '../../src/roads/derived-road';
+import { buildBigEyeBoy, buildSmallRoad, buildCockroachPig, derivedRoadEntries } from '../../src/roads/derived-road';
 import { GameResult } from '../../src/roads/types';
 
 function r(...outcomes: string[]): GameResult[] {
   return outcomes.map(o => ({ outcome: o as 'B' | 'P' | 'T' }));
 }
+
+/** First letter of each entry's color, e.g. "BBRBRB" */
+function colors(results: GameResult[], offset: number): string {
+  const { columns } = buildBigRoad(results);
+  return derivedRoadEntries(columns, offset).map(e => (e.color === 'red' ? 'R' : 'B')).join('');
+}
+
+// BB P BBB PP B — columns of length 2, 1, 3, 2, 1
+const shoe = r('B', 'B', 'P', 'B', 'B', 'B', 'P', 'P', 'B');
+
+describe('Derived road rules', () => {
+  it('should follow the standard rules for Big Eye Boy', () => {
+    // Starts at column 2 row 1 (column 1 is a single cell):
+    // col 2: new column, len(1)=1 vs len(0)=2 → B; row 1: col 1 ended one row above → B;
+    //        row 2: col 1 ended two rows above (直落) → R
+    // col 3: len(2)=3 vs len(1)=1 → B; row 1: col 2 has row 1 → R
+    // col 4: len(3)=2 vs len(2)=3 → B
+    expect(colors(shoe, 1)).toBe('BBRBRB');
+  });
+
+  it('should follow the standard rules for Small Road', () => {
+    // Starts at column 2 row 1: col 0 has row 1 → R; row 2: col 0 ended one row above → B
+    // col 3: len(2)=3 vs len(0)=2 → B; row 1: col 1 ended one row above → B
+    // col 4: len(3)=2 vs len(1)=1 → B
+    expect(colors(shoe, 2)).toBe('RBBBB');
+  });
+
+  it('should follow the standard rules for Cockroach Pig', () => {
+    // Starts at column 3 row 1: col 0 has row 1 → R; col 4: len(3)=2 vs len(0)=2 → R
+    expect(colors(shoe, 3)).toBe('RR');
+  });
+
+  it('should lay out entries like the Big Road, one column per color run', () => {
+    const { columns } = buildBigRoad(shoe);
+    const grid = buildBigEyeBoy(columns);
+    // BBRBRB → columns: [B,B] [R] [B] [R] [B]
+    expect(grid.map(col => col.filter(Boolean).map(c => c!.color))).toEqual([
+      ['blue', 'blue'], ['red'], ['blue'], ['red'], ['blue'],
+    ]);
+  });
+});
 
 describe('Derived Roads', () => {
   describe('Big Eye Boy (大眼仔路) — offset 1', () => {

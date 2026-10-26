@@ -21,6 +21,8 @@
   "prediction.streakAnalysis": "連莊/連閒分析",
   "prediction.patternMatch": "模式匹配",
   "prediction.derivedConsensus": "衍生路共識",
+  "prediction.frequency": "頻率分析",
+  "prediction.rhythm": "節奏分析",
   "prediction.noData": "資料不足，無法預測",
 
   "signal.streakExceedsAvg": "連續 {0} 局，超過平均值（{1}）",
@@ -60,6 +62,7 @@
   "capture.regionHint": "請選取完整路圖，否則可能偵測失敗。",
   "capture.dragHint": "拖曳選取路子區域 — ESC 取消",
   "capture.regionSaved": "已儲存區域：{0}×{1}px",
+  "capture.paused": "擷取已暫停，請重新選取區域",
   "upload.hint": "上傳或貼上 (Ctrl+V) 大路截圖",
 
   "settings.title": "設定",
@@ -70,7 +73,7 @@
   "settings.enterLicenseKey": "輸入授權金鑰...",
   "settings.activate": "啟用",
   "settings.upgradePlans": "升級方案",
-  "tier.premiumDesc": "遊戲紀錄、進階預測訊號、衍生路共識分析、資料匯出",
+  "tier.premiumDesc": "進階預測訊號：模式匹配、衍生路共識、節奏分析",
 
   "tier.free": "免費版",
   "tier.premium": "進階版",
@@ -93,6 +96,7 @@
   "help.step4": "4. 查看預測結果、統計數據及五條衍生路",
   "help.step5": "",
   "help.tip": "提示：請確保框選範圍包含完整路圖，資料越多預測越準確。",
+  "help.newShoe": "從新的一靴開始擷取，才能記錄整靴牌。",
 
   "disclaimer.text": "本工具僅供娛樂用途，不構成任何投注建議。賭博有風險，請量力而為。",
   "disclaimer.understand": "我了解"

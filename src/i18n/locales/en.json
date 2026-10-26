@@ -21,6 +21,8 @@
   "prediction.streakAnalysis": "Streak Analysis",
   "prediction.patternMatch": "Pattern Match",
   "prediction.derivedConsensus": "Derived Road Consensus",
+  "prediction.frequency": "Frequency",
+  "prediction.rhythm": "Rhythm",
   "prediction.noData": "Not enough data for prediction",
 
   "signal.streakExceedsAvg": "Streak of {0} exceeds avg ({1})",
@@ -60,6 +62,7 @@
   "capture.regionHint": "Please select the complete road chart, otherwise detection may fail.",
   "capture.dragHint": "Drag to select road area — ESC to cancel",
   "capture.regionSaved": "Region saved: {0}×{1}px",
+  "capture.paused": "Capture paused — select the region again",
   "upload.hint": "Upload or paste (Ctrl+V) a screenshot of the Big Road",
 
   "settings.title": "Settings",
@@ -70,7 +73,7 @@
   "settings.enterLicenseKey": "Enter license key...",
   "settings.activate": "Activate",
   "settings.upgradePlans": "Upgrade Plans",
-  "tier.premiumDesc": "Game history, advanced prediction signals, derived road consensus, data export",
+  "tier.premiumDesc": "Advanced prediction signals: pattern matching, derived road consensus, rhythm analysis",
 
   "tier.free": "Free",
   "tier.premium": "Premium",
@@ -93,6 +96,7 @@
   "help.step4": "4. View predictions, stats, and all five derived roads",
   "help.step5": "",
   "help.tip": "Tip: Make sure the selection covers the complete road chart. Predictions improve with more game data.",
+  "help.newShoe": "Start capturing when a new shoe begins to record every hand of it.",
 
   "disclaimer.text": "This tool is for entertainment purposes only. It does not constitute betting advice. Gambling involves risk — please play responsibly.",
   "disclaimer.understand": "I Understand"

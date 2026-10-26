@@ -1,4 +1,5 @@
-import { GameResult, BigRoadColumn, DerivedRoadGrid, Outcome } from './types';
+import { GameResult, BigRoadColumn } from './types';
+import { derivedRoadEntries } from './derived-road';
 import { t } from '../i18n/i18n';
 
 export interface Prediction {
@@ -32,7 +33,10 @@ export interface ShoeStats {
   longStreaksCount: number; // Columns with length >= 4
 }
 
-const MIN_RESULTS_FOR_PREDICTION = 6;
+/** Hands (ties included) needed before predicting at all */
+const MIN_RESULTS_FOR_PREDICTION = 10;
+/** Hands (ties included) from which confidence is no longer scaled down */
+const FULL_CONFIDENCE_RESULTS = 30;
 const MAX_CONFIDENCE = 75;
 
 /**
@@ -42,13 +46,10 @@ const MAX_CONFIDENCE = 75;
 export function predict(
   results: GameResult[],
   columns: BigRoadColumn[],
-  bigEyeBoy: DerivedRoadGrid,
-  smallRoad: DerivedRoadGrid,
-  cockroachPig: DerivedRoadGrid,
   isPremium: boolean = false,
 ): Prediction | null {
+  if (results.length < MIN_RESULTS_FOR_PREDICTION) return null;
   const nonTieResults = results.filter(r => r.outcome !== 'T');
-  if (nonTieResults.length < MIN_RESULTS_FOR_PREDICTION) return null;
 
   const signals: PredictionSignal[] = [];
 
@@ -68,9 +69,7 @@ export function predict(
 
   // Signal 4: Derived Road Consensus (premium)
   if (isPremium) {
-    const consensusSignal = analyzeDerivedConsensus(
-      columns, bigEyeBoy, smallRoad, cockroachPig,
-    );
+    const consensusSignal = analyzeDerivedConsensus(columns);
     if (consensusSignal) signals.push(consensusSignal);
   }
 
@@ -98,19 +97,33 @@ export function predict(
 
   const winningOutcome: 'B' | 'P' = bankerScore >= playerScore ? 'B' : 'P';
   const winningScore = Math.max(bankerScore, playerScore);
-  const rawConfidence = (winningScore / totalWeight) * 100;
 
-  // Scale confidence: 50% base (coin flip) maps to 0, 100% maps to MAX_CONFIDENCE
-  const scaledConfidence = Math.min(
+  // How much the signals agree: 0 when split evenly (a coin flip), 1 when unanimous
+  const agreement = (winningScore / totalWeight - 0.5) / 0.5;
+  // Patterns in a short history mean little, so scale down until there is enough data
+  const dataFactor = Math.min(1, results.length / FULL_CONFIDENCE_RESULTS);
+  const confidence = Math.min(
     MAX_CONFIDENCE,
-    Math.round(((rawConfidence - 50) / 50) * MAX_CONFIDENCE),
+    Math.round(agreement * dataFactor * MAX_CONFIDENCE),
   );
 
   return {
     outcome: winningOutcome,
-    confidence: Math.max(1, scaledConfidence),
+    confidence: Math.max(1, confidence),
     signals,
   };
+}
+
+/** Display name of a signal; signal names are internal ids such as 'pattern_pingpong' */
+export function signalLabel(name: string): string {
+  if (name.startsWith('pattern_')) return t('prediction.patternMatch');
+  const keys: Record<string, string> = {
+    streak: 'prediction.streakAnalysis',
+    frequency: 'prediction.frequency',
+    derived_consensus: 'prediction.derivedConsensus',
+    rhythm: 'prediction.rhythm',
+  };
+  return keys[name] ? t(keys[name]) : name;
 }
 
 /** Calculate shoe statistics */
@@ -302,26 +315,13 @@ function analyzePatterns(columns: BigRoadColumn[]): PredictionSignal[] {
 }
 
 /** Check derived road consensus, using actual streak direction */
-function analyzeDerivedConsensus(
-  columns: BigRoadColumn[],
-  bigEyeBoy: DerivedRoadGrid,
-  smallRoad: DerivedRoadGrid,
-  cockroachPig: DerivedRoadGrid,
-): PredictionSignal | null {
-  const lastColor = (grid: DerivedRoadGrid): 'red' | 'blue' | null => {
-    for (let col = grid.length - 1; col >= 0; col--) {
-      for (let row = grid[col].length - 1; row >= 0; row--) {
-        if (grid[col][row]) return grid[col][row]!.color;
-      }
-    }
-    return null;
-  };
-
-  const colors = [
-    lastColor(bigEyeBoy),
-    lastColor(smallRoad),
-    lastColor(cockroachPig),
-  ].filter(Boolean);
+function analyzeDerivedConsensus(columns: BigRoadColumn[]): PredictionSignal | null {
+  // The newest entry of each derived road (Big Eye Boy, Small Road, Cockroach Pig).
+  // Taken from the entry order, not the grid: a dragon tail can reach further
+  // right than the columns drawn after it.
+  const colors = [1, 2, 3]
+    .map((offset) => derivedRoadEntries(columns, offset).at(-1)?.color)
+    .filter(Boolean);
 
   if (colors.length < 2) return null;
 
