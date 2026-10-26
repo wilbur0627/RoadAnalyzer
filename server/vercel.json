@@ -6,6 +6,18 @@
     }
   ],
   "routes": [
+    {
+      "src": "/(.*)",
+      "methods": ["POST", "PUT", "PATCH", "DELETE"],
+      "missing": [
+        {
+          "type": "header",
+          "key": "origin",
+          "value": { "eq": "chrome-extension://jphoepmhpmbmlcimkeiihcddgabohkan" }
+        }
+      ],
+      "mitigate": { "action": "deny" }
+    },
     { "src": "/(.*)", "dest": "api/index.py" }
   ]
 }
