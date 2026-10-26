@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   CAPTURE_TAB_ID: 'captureTabId',
   ROAD_HISTORY: 'roadHistory',
   CAPTURE_FAILURES: 'captureFailures',
+  ALERT_SETTINGS: 'alertSettings',
 } as const;
 
 /** Captures that fail in a row before the popup and the overlay say capturing is paused */

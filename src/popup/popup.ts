@@ -1,11 +1,14 @@
 import { initI18n, t, getLocale, setLocale, Locale } from '../i18n/i18n';
 import { RoadManager } from '../roads/road-manager';
-import { predict, Prediction, calculateStats, signalLabel } from '../roads/prediction';
+import { predict, Prediction, calculateStats, signalLabel, premiumSignalLabels, ShoeStats } from '../roads/prediction';
+import { askRoad, DERIVED_ROADS } from '../roads/ask-road';
+import { ALERT_KINDS, ALERT_THRESHOLDS, AlertKind, AlertSettings, toAlertSettings } from '../roads/alerts';
 import { renderRoad } from './components/road-renderer';
 import { RoadAnalysis, GameResult, Outcome } from '../roads/types';
 import { Tier, STORAGE_KEYS, CAPTURE_PAUSE_AFTER_FAILURES } from '../shared/constants';
 import {
   getTier, isDisclaimerAccepted, acceptDisclaimer, getLastAnalysis, getRoadHistory, getCaptureFailures,
+  getAlertSettings, saveAlertSettings,
 } from '../shared/storage';
 import { initAds, removeAds } from '../monetization/ads';
 import { activateLicense, getPaymentLink } from '../monetization/license';
@@ -20,8 +23,11 @@ let serverStatus: 'checking' | 'online' | 'offline' = 'checking';
 let activeTabId: number | null = null;
 /** Results broadcast while the popup was opening are newer than the stored record */
 let receivedLiveResults = false;
+/** The pattern alert settings last shown in the settings panel */
+let alertSettings: AlertSettings = toAlertSettings(undefined);
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+const isPremium = () => currentTier === Tier.PREMIUM;
 
 async function init() {
   await initI18n();
@@ -33,6 +39,7 @@ async function init() {
   currentTier = await getTier();
   setupEventListeners();
   initAds($('#ad-container'));
+  renderAlertSettings();
 
   // Get active tab
   try {
@@ -133,7 +140,9 @@ function setupEventListeners() {
   $('#settings-btn').addEventListener('click', () => {
     $('#settings-panel').classList.remove('hidden');
     updateTierDisplay();
+    renderAlertSettings();
   });
+  $('#alert-settings').addEventListener('change', saveAlertSettingsFromForm);
   $('#settings-close').addEventListener('click', () => {
     $('#settings-panel').classList.add('hidden');
   });
@@ -144,6 +153,8 @@ function setupEventListeners() {
   langSelect.addEventListener('change', async () => {
     await setLocale(langSelect.value as Locale);
     updateAllTexts();
+    // The statistics, prediction and Ask Road texts are built in code
+    updateDisplay();
   });
 
   // License
@@ -158,7 +169,7 @@ function setupEventListeners() {
       if (result.success) {
         currentTier = result.tier;
         statusEl.textContent = result.message; statusEl.style.color = '#22c55e';
-        updateTierDisplay(); removeAds(); updateDisplay();
+        updateTierDisplay(); removeAds(); updateDisplay(); renderAlertSettings();
       } else { statusEl.textContent = result.message; statusEl.style.color = '#ef4444'; }
     } catch { statusEl.textContent = t('license.networkError'); statusEl.style.color = '#ef4444'; }
   });
@@ -297,6 +308,7 @@ function updateDisplay() {
   updateStats();
   updatePrediction();
   renderCurrentRoad();
+  updateAskRoad();
 }
 
 function updateStats() {
@@ -308,6 +320,150 @@ function updateStats() {
   $('#stat-tie').textContent = String(stats.tie);
   $('#stat-banker-pct').textContent = stats.bankerPct > 0 ? `${stats.bankerPct.toFixed(1)}%` : '';
   $('#stat-player-pct').textContent = stats.playerPct > 0 ? `${stats.playerPct.toFixed(1)}%` : '';
+  updateRoadStats(stats);
+}
+
+/** A link to the Premium checkout */
+function upgradeLink(): HTMLElement {
+  const link = el('a', { href: '#', class: 'upgrade-link' }, t('premium.unlock'));
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.open(getPaymentLink(), '_blank');
+  });
+  return link;
+}
+
+/** The current streak for everyone; the rest of the road statistics for Premium, locked for Free */
+function updateRoadStats(stats: ShoeStats) {
+  const body = $('#road-stats-body');
+  clearChildren(body);
+  $('#road-stats').classList.toggle('hidden', stats.total === 0);
+  if (stats.total === 0) return;
+
+  const streak = stats.currentStreak;
+  const current = el('div', { class: 'road-stat wide' });
+  current.append(
+    el('span', { class: 'road-stat-label' }, t('stats.currentStreak')),
+    streak
+      ? el('span', { class: `road-stat-value ${streak.outcome === 'B' ? 'banker' : 'player'}` },
+        `${t(streak.outcome === 'B' ? 'outcome.bankerShort' : 'outcome.playerShort')} ${safeNumber(streak.length)}`)
+      : el('span', { class: 'road-stat-value' }, '—'),
+  );
+  body.appendChild(current);
+
+  const premium = isPremium();
+  const items: [string, number][] = [
+    ['stats.longestBanker', stats.longestBankerStreak],
+    ['stats.longestPlayer', stats.longestPlayerStreak],
+    ['stats.avgStreak', stats.avgStreak],
+    ['stats.singles', stats.singlesCount],
+    ['stats.doubles', stats.doublesCount],
+    ['stats.dragons', stats.longStreaksCount],
+  ];
+  for (const [key, value] of items) {
+    const item = el('div', { class: 'road-stat' });
+    item.append(
+      el('span', { class: 'road-stat-label' }, t(key)),
+      el('span', { class: `road-stat-value${premium ? '' : ' locked'}` }, premium ? String(safeNumber(value)) : '🔒'),
+    );
+    body.appendChild(item);
+  }
+  if (!premium) {
+    const note = el('div', { class: 'locked-note' });
+    note.append(el('span', {}, `🔒 ${t('tier.premium')}`), upgradeLink());
+    body.appendChild(note);
+  }
+}
+
+/** What each derived road adds if the next hand is Banker or Player (Premium; locked for Free) */
+function updateAskRoad() {
+  const results = roadManager.getResults();
+  const body = $('#ask-road-body');
+  clearChildren(body);
+  $('#ask-road-panel').classList.toggle('hidden', results.length === 0);
+  if (results.length === 0) return;
+
+  if (!isPremium()) {
+    const note = el('div', { class: 'locked-note' });
+    note.append(el('span', {}, `🔒 ${t('askRoad.desc')}`), upgradeLink());
+    body.appendChild(note);
+    return;
+  }
+
+  const asked = askRoad(results);
+  body.appendChild(el('span'));
+  for (const { key } of DERIVED_ROADS) body.appendChild(el('span', { class: 'ask-road-head' }, t(`road.${key}`)));
+  for (const outcome of ['B', 'P'] as const) {
+    body.appendChild(el('span', { class: `ask-road-label ${outcome === 'B' ? 'banker' : 'player'}` },
+      t(outcome === 'B' ? 'askRoad.banker' : 'askRoad.player')));
+    for (const { key } of DERIVED_ROADS) {
+      const color = asked[outcome][key];
+      // A road that has not started yet shows a dash
+      body.appendChild(color ? el('span', { class: `ask-dot ${color}` }) : el('span', { class: 'ask-none' }, '—'));
+    }
+  }
+}
+
+const ALERT_LABELS: Record<AlertKind, string> = {
+  dragon: 'settings.alertDragon',
+  singleJump: 'settings.alertSingleJump',
+  doubleJump: 'settings.alertDoubleJump',
+};
+
+/** Pattern alert settings: Premium can change them, Free sees them locked */
+async function renderAlertSettings() {
+  alertSettings = await getAlertSettings();
+  const container = $('#alert-settings');
+  clearChildren(container);
+  const premium = isPremium();
+
+  for (const kind of ALERT_KINDS) {
+    const { min, max } = ALERT_THRESHOLDS[kind];
+    const row = el('label', { class: `alert-setting${premium ? '' : ' locked'}` });
+    const toggle = el('input', { type: 'checkbox', 'data-kind': kind }) as HTMLInputElement;
+    toggle.checked = alertSettings[kind].enabled;
+    const threshold = el('input', {
+      type: 'number', min: String(min), max: String(max), step: '1', 'data-kind': kind,
+    }) as HTMLInputElement;
+    threshold.value = String(alertSettings[kind].threshold);
+    toggle.disabled = !premium;
+    threshold.disabled = !premium;
+    row.append(toggle, el('span', {}, t(ALERT_LABELS[kind])), threshold);
+    container.appendChild(row);
+  }
+
+  if (!premium) {
+    const note = el('div', { class: 'locked-note' });
+    note.append(el('span', {}, `🔒 ${t('tier.premium')}`), upgradeLink());
+    container.appendChild(note);
+  }
+}
+
+/** Save the settings form; a number out of range is pulled into it, an empty one keeps the last value */
+async function saveAlertSettingsFromForm() {
+  if (!isPremium()) return;
+  const input = (kind: AlertKind, type: string) =>
+    document.querySelector<HTMLInputElement>(`#alert-settings input[type="${type}"][data-kind="${kind}"]`);
+
+  const next = {} as AlertSettings;
+  for (const kind of ALERT_KINDS) {
+    const { min, max } = ALERT_THRESHOLDS[kind];
+    const typed = input(kind, 'number')?.value.trim() ?? '';
+    const value = Math.round(Number(typed));
+    next[kind] = {
+      enabled: input(kind, 'checkbox')?.checked ?? alertSettings[kind].enabled,
+      threshold: typed !== '' && Number.isFinite(value)
+        ? Math.min(max, Math.max(min, value))
+        : alertSettings[kind].threshold,
+    };
+  }
+
+  alertSettings = toAlertSettings(next);
+  await saveAlertSettings(alertSettings);
+  for (const kind of ALERT_KINDS) {
+    const threshold = input(kind, 'number');
+    if (threshold) threshold.value = String(alertSettings[kind].threshold);
+  }
 }
 
 function updatePrediction() {
@@ -345,6 +501,18 @@ function updatePrediction() {
     const row = el('div', { class: 'signal' });
     row.appendChild(el('span', { class: 'signal-name' }, signalLabel(s.name)));
     row.appendChild(el('span', {}, String(s.description)));
+    signalsEl.appendChild(row);
+  }
+
+  // Show Free users the signals Premium adds, by name only
+  if (!isPremium()) {
+    for (const name of premiumSignalLabels()) {
+      const row = el('div', { class: 'signal locked' });
+      row.append(el('span', { class: 'signal-name' }, name), el('span', {}, `🔒 ${t('tier.premium')}`));
+      signalsEl.appendChild(row);
+    }
+    const row = el('div', { class: 'signal' });
+    row.appendChild(upgradeLink());
     signalsEl.appendChild(row);
   }
 }
@@ -428,6 +596,7 @@ function updateAllTexts() {
   updateTierDisplay();
   updatePricingLinks();
   updateServerStatus();
+  renderAlertSettings();
 }
 
 init();

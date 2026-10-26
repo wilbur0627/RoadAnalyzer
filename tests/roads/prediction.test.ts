@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { predict, signalLabel } from '../../src/roads/prediction';
+import { predict, signalLabel, premiumSignalLabels } from '../../src/roads/prediction';
 import { buildBigRoad } from '../../src/roads/big-road';
 import { GameResult } from '../../src/roads/types';
 
@@ -104,5 +104,24 @@ describe('signalLabel', () => {
     const names = new Set(shoes.flatMap(shoe => fullPredict(shoe, true)?.signals.map(s => s.name) ?? []));
     expect(names.size).toBeGreaterThan(0);
     for (const name of names) expect(signalLabel(name)).not.toBe(name);
+  });
+});
+
+describe('premiumSignalLabels', () => {
+  it('should name the signals only Premium adds', () => {
+    expect(premiumSignalLabels()).toEqual(['Pattern Match', 'Derived Road Consensus', 'Rhythm']);
+
+    const shoes = [
+      r('B', 'P', 'B', 'P', 'B', 'P', 'B', 'P', 'B', 'P', 'B', 'P'),
+      r('B', 'B', 'P', 'P', 'B', 'B', 'P', 'P', 'B', 'B', 'P', 'P'),
+      r('B', 'B', 'B', 'P', 'P', 'P', 'B', 'B', 'B', 'P', 'P', 'P'),
+      r('B', 'P', 'P', 'B', 'B', 'B', 'P', 'B', 'B', 'P', 'P', 'P', 'P', 'B'),
+    ];
+    const labels = (premium: boolean) =>
+      new Set(shoes.flatMap(shoe => fullPredict(shoe, premium)?.signals.map(s => signalLabel(s.name)) ?? []));
+    const free = labels(false);
+    const premiumOnly = [...labels(true)].filter(label => !free.has(label));
+    expect(premiumOnly.length).toBeGreaterThan(0);
+    for (const label of premiumOnly) expect(premiumSignalLabels()).toContain(label);
   });
 });

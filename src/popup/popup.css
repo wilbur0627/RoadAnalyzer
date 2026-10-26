@@ -165,7 +165,8 @@ body {
   overflow: hidden;
 }
 
-.prediction-header {
+.prediction-header,
+.panel-header {
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -240,6 +241,101 @@ body {
 }
 
 .signal-name { font-weight: 600; color: #a1a1aa; }
+.signal.locked,
+.signal.locked .signal-name { color: #52525b; }
+
+/* ── Premium extras: road statistics, Ask Road ── */
+.side-panel {
+  margin: 8px 16px;
+  background: #1a1b23;
+  border: 1px solid #2a2b35;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.road-stats-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.road-stat {
+  text-align: center;
+  padding: 4px;
+  background: #13141b;
+  border-radius: 6px;
+}
+.road-stat.wide { grid-column: 1 / -1; }
+
+.road-stat-label {
+  display: block;
+  font-size: 10px;
+  color: #71717a;
+}
+
+.road-stat-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.road-stat-value.banker { color: #ef4444; }
+.road-stat-value.player { color: #3b82f6; }
+.road-stat-value.locked { color: #52525b; }
+
+.ask-road-body {
+  display: grid;
+  grid-template-columns: auto repeat(3, 1fr);
+  gap: 4px 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+
+.ask-road-head {
+  font-size: 10px;
+  color: #71717a;
+  text-align: center;
+}
+
+.ask-road-label { font-weight: 600; }
+.ask-road-label.banker { color: #ef4444; }
+.ask-road-label.player { color: #3b82f6; }
+
+.ask-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  justify-self: center;
+}
+.ask-dot.red { background: #ef4444; }
+.ask-dot.blue { background: #3b82f6; }
+
+.ask-none {
+  color: #52525b;
+  text-align: center;
+}
+
+.locked-note {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #71717a;
+}
+
+.upgrade-link {
+  color: #eab308;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.upgrade-link:hover { text-decoration: underline; }
 
 /* ── Road tabs ── */
 .road-tabs {
@@ -412,6 +508,29 @@ body {
 
 .tier-badge.free { background: #2a2b35; color: #a1a1aa; }
 .tier-badge.premium { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+
+.settings-body label.alert-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-weight: 400;
+  color: #e4e4e7;
+}
+.settings-body label.alert-setting.locked { color: #52525b; }
+
+.alert-setting input[type="number"] {
+  width: 56px;
+  margin-left: auto;
+  background: #1a1b23;
+  border: 1px solid #2a2b35;
+  color: #e4e4e7;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#alert-settings .locked-note { margin-top: 6px; }
 
 /* ── Ad container ── */
 #ad-container {

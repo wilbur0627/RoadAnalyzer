@@ -1,7 +1,9 @@
-import { GameResult } from '../../roads/types';
+import { GameResult, BigRoadColumn } from '../../roads/types';
 import { predict, Prediction, calculateStats } from '../../roads/prediction';
 import { RoadManager } from '../../roads/road-manager';
-import { getTier, getSavedRegion, toTier } from '../../shared/storage';
+import { askRoad, DERIVED_ROADS } from '../../roads/ask-road';
+import { activeAlerts, AlertSettings, DEFAULT_ALERT_SETTINGS, RoadAlert, toAlertSettings } from '../../roads/alerts';
+import { getTier, getSavedRegion, toTier, getAlertSettings } from '../../shared/storage';
 import { Tier, STORAGE_KEYS, RoadRegion } from '../../shared/constants';
 import { el, clearChildren, safeNumber } from '../../shared/sanitize';
 import { t } from '../../i18n/i18n';
@@ -10,6 +12,18 @@ import { pickPanelPosition, nearestClearCorner, overlaps, regionToCssRect, Rect 
 type OverlayStatus = 'scanning' | 'found' | 'not_found' | 'watching';
 
 const OVERLAY_ID = 'road-analyzer-overlay';
+
+function alertText(alert: RoadAlert): string {
+  if (alert.kind === 'dragon') {
+    return t('alert.dragon', t(alert.outcome === 'B' ? 'outcome.banker' : 'outcome.player'), alert.count);
+  }
+  return t(alert.kind === 'singleJump' ? 'alert.singleJump' : 'alert.doubleJump', alert.count);
+}
+
+/** Draw attention to something that just appeared */
+function flash(element: HTMLElement): void {
+  element.animate?.([{ opacity: 1 }, { opacity: 0.25 }, { opacity: 1 }], { duration: 500, iterations: 3 });
+}
 
 /**
  * Floating overlay panel injected into the page.
@@ -32,11 +46,17 @@ export class Overlay {
   private userMoved = false;
   /** Folded down to its header because every corner covers the road; unfolded once there is room */
   private autoMinimized = false;
+  private alertSettings: AlertSettings = DEFAULT_ALERT_SETTINGS;
+  /** The element of each alert shown, by pattern; kept across renders so a flash isn't cut short */
+  private alertItems = new Map<string, HTMLElement>();
 
   // Persistent DOM references for efficient updates
+  private headerAlertEl!: HTMLElement;
   private noticeEl!: HTMLElement;
+  private alertsEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private predictionEl!: HTMLElement;
+  private askRoadEl!: HTMLElement;
   private statsEl!: HTMLElement;
   private debugEl!: HTMLElement;
 
@@ -59,14 +79,23 @@ export class Overlay {
     // Cache tier once, update on storage change
     getTier().then(tier => this.setTier(tier));
     getSavedRegion().then(region => this.setRegion(region));
+    getAlertSettings().then(settings => this.setAlertSettings(settings));
     try {
       chrome.storage.onChanged.addListener((changes) => {
         if (changes.tier) this.setTier(toTier(changes.tier.newValue));
         if (changes[STORAGE_KEYS.ROAD_REGION]) {
           this.setRegion((changes[STORAGE_KEYS.ROAD_REGION].newValue as RoadRegion | undefined) ?? null);
         }
+        if (changes[STORAGE_KEYS.ALERT_SETTINGS]) {
+          this.setAlertSettings(toAlertSettings(changes[STORAGE_KEYS.ALERT_SETTINGS].newValue));
+        }
       });
     } catch { /* not in extension context */ }
+  }
+
+  private setAlertSettings(settings: AlertSettings): void {
+    this.alertSettings = settings;
+    this.render();
   }
 
   /** Results can arrive before the tier is read; redraw so Premium signals show from the start */
@@ -130,17 +159,21 @@ export class Overlay {
     closeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.hide(); });
 
     btnGroup.append(minimizeBtn, closeBtn);
-    header.append(title, btnGroup);
+    // Shows the alerts while the body is folded away
+    this.headerAlertEl = el('span', { style: 'display:none;flex:1;min-width:0;margin:0 8px;color:#f59e0b;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' });
+    header.append(title, this.headerAlertEl, btnGroup);
 
     // Body
     const body = el('div', { id: 'ra-body', style: 'padding:10px 12px;' });
     this.noticeEl = el('div', { style: 'display:none;color:#f59e0b;text-align:center;padding:0 0 8px;' }, t('capture.paused'));
+    this.alertsEl = el('div', { style: 'display:none;' });
     this.statusEl = el('div', { style: 'color:#71717a;text-align:center;padding:8px;' }, t('detection.scanning'));
     this.predictionEl = el('div', { style: 'display:none;' });
+    this.askRoadEl = el('div', { style: 'display:none;align-items:center;gap:10px;margin-top:8px;padding:6px 8px;background:#1e1f2a;border-radius:6px;font-size:11px;' });
     this.statsEl = el('div', { style: 'display:none;' });
     this.debugEl = el('div', { style: 'display:none;margin-top:8px;' });
 
-    body.append(this.noticeEl, this.statusEl, this.predictionEl, this.statsEl, this.debugEl);
+    body.append(this.noticeEl, this.alertsEl, this.statusEl, this.predictionEl, this.askRoadEl, this.statsEl, this.debugEl);
     this.container.append(header, body);
   }
 
@@ -197,12 +230,81 @@ export class Overlay {
     const stats = calculateStats(results, analysis.columns);
 
     this.updateStatus('found');
+    this.updateAlerts(analysis.columns, isPremium);
     this.updatePredictionDisplay(pred);
+    this.updateAskRoadDisplay(results, isPremium);
     this.updateStatsDisplay(stats);
     this.updateDebugDisplay(debugImage);
 
     // The panel's height just changed
     this.keepClearOfRegion();
+  }
+
+  /** Point out the patterns the user wants to hear about (Premium) */
+  private updateAlerts(columns: BigRoadColumn[], isPremium: boolean): void {
+    const alerts = isPremium ? activeAlerts(columns, this.alertSettings) : [];
+    const items = new Map<string, HTMLElement>();
+    for (const alert of alerts) {
+      // The same pattern keeps its key as it grows, so it keeps its element too
+      const key = `${alert.kind}:${alert.since}`;
+      const item = this.alertItems.get(key)
+        ?? el('div', { style: 'margin-bottom:6px;padding:6px 8px;border-radius:6px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);color:#f59e0b;font-weight:600;text-align:center;' });
+      item.textContent = alertText(alert);
+      items.set(key, item);
+    }
+
+    for (const [key, item] of this.alertItems) if (!items.has(key)) item.remove();
+    // Alerts come in a fixed order, so a new one goes in at its index; only new ones flash
+    let appeared = false;
+    [...items.values()].forEach((item, i) => {
+      if (item.parentNode === this.alertsEl) return;
+      this.alertsEl.insertBefore(item, this.alertsEl.children[i] ?? null);
+      flash(item);
+      appeared = true;
+    });
+    this.alertItems = items;
+    this.alertsEl.style.display = alerts.length > 0 ? 'block' : 'none';
+
+    const texts = alerts.map(alertText);
+    this.headerAlertEl.textContent = texts.join(' · ');
+    this.headerAlertEl.title = texts.join('\n');
+    this.updateHeaderAlert();
+    if (appeared) flash(this.headerAlertEl);
+  }
+
+  /** The alerts move to the header while the body is folded away */
+  private updateHeaderAlert(): void {
+    const body = this.container.querySelector('#ra-body') as HTMLElement | null;
+    const folded = body?.style.display === 'none';
+    this.headerAlertEl.style.display = folded && this.headerAlertEl.textContent ? 'block' : 'none';
+  }
+
+  /** One line of Ask Road: the color each derived road adds for a Banker or Player hand; locked for Free */
+  private updateAskRoadDisplay(results: GameResult[], isPremium: boolean): void {
+    clearChildren(this.askRoadEl);
+    this.askRoadEl.style.display = 'flex';
+    this.askRoadEl.appendChild(el('span', { style: 'flex:1;color:#a1a1aa;font-weight:600;' }, t('askRoad.title')));
+    if (!isPremium) {
+      this.askRoadEl.appendChild(el('span', { style: 'color:#52525b;' }, `🔒 ${t('tier.premium')}`));
+      return;
+    }
+
+    const asked = askRoad(results);
+    for (const outcome of ['B', 'P'] as const) {
+      const color = outcome === 'B' ? '#ef4444' : '#3b82f6';
+      const group = el('span', { style: 'display:flex;align-items:center;gap:3px;' });
+      group.appendChild(el('span', { style: `color:${color};font-weight:700;margin-right:2px;` },
+        t(outcome === 'B' ? 'outcome.bankerShort' : 'outcome.playerShort')));
+      for (const { key } of DERIVED_ROADS) {
+        const next = asked[outcome][key];
+        const dot = next
+          ? el('span', { style: `width:9px;height:9px;border-radius:50%;background:${next === 'red' ? '#ef4444' : '#3b82f6'};` })
+          : el('span', { style: 'color:#52525b;' }, '–');
+        dot.title = t(`road.${key}`);
+        group.appendChild(dot);
+      }
+      this.askRoadEl.appendChild(group);
+    }
   }
 
   /** Show the debug detection grid image */
@@ -293,6 +395,7 @@ export class Overlay {
   private setMinimized(minimized: boolean): void {
     const body = this.container.querySelector('#ra-body') as HTMLElement;
     if (body) body.style.display = minimized ? 'none' : 'block';
+    this.updateHeaderAlert();
   }
 
   show(): void { this.container.style.display = 'block'; }

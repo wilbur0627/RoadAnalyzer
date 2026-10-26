@@ -1,5 +1,6 @@
 import { STORAGE_KEYS, Tier, RoadRegion, AnalysisResult } from './constants';
 import { RoadHistory, toRoadHistory } from './history';
+import { AlertSettings, toAlertSettings } from '../roads/alerts';
 
 /** Read a stored tier; anything but Premium (e.g. the retired 'ad_free') counts as Free */
 export function toTier(value: unknown): Tier {
@@ -43,6 +44,21 @@ export async function getSavedRegion(): Promise<RoadRegion | null> {
   } catch {
     return null;
   }
+}
+
+/** Get the pattern alert settings; anything missing or invalid takes its default */
+export async function getAlertSettings(): Promise<AlertSettings> {
+  try {
+    const data = await chrome.storage.sync.get(STORAGE_KEYS.ALERT_SETTINGS);
+    return toAlertSettings(data[STORAGE_KEYS.ALERT_SETTINGS]);
+  } catch {
+    return toAlertSettings(undefined);
+  }
+}
+
+/** Save the pattern alert settings (sync storage, so they follow the user's Chrome) */
+export async function saveAlertSettings(settings: AlertSettings): Promise<void> {
+  await chrome.storage.sync.set({ [STORAGE_KEYS.ALERT_SETTINGS]: settings });
 }
 
 /** Last uploaded road image and the server's analysis of it */

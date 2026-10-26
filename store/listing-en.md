@@ -29,11 +29,14 @@ Predictions start after 10 hands, and confidence is scaled down until there are 
 - Region capture with automatic refresh
 - Draggable floating overlay panel
 - Live statistics (win rates, streak analysis)
+- Road statistics: current streak (Free); longest Banker/Player streak, average streak length, single/double/dragon column counts (Premium)
+- Ask Road: the color each derived road adds if the next hand is Banker or Player — Premium
+- Pattern alerts: the overlay points out dragons, single jumps and double jumps as they happen, with adjustable thresholds — Premium
 - Multi-language: English, 繁體中文, 简体中文
 
 ### Plans
-- **Free**: All 5 roads + basic prediction (streak and frequency signals)
-- **Premium** ($9.99/mo): Adds the advanced prediction signals — pattern recognition, derived road consensus, rhythm detection
+- **Free**: All 5 roads + basic prediction (streak and frequency signals) + current streak
+- **Premium** ($9.99/mo): Adds the advanced prediction signals (pattern recognition, derived road consensus, rhythm detection), Ask Road, full road statistics and pattern alerts
 
 ### Disclaimer
 ⚠️ This tool is for ENTERTAINMENT PURPOSES ONLY. It does not constitute betting advice. Baccarat is a game of chance — no analysis tool can change the house edge. Please gamble responsibly.

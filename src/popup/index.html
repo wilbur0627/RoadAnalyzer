@@ -48,6 +48,12 @@
       </div>
     </div>
 
+    <!-- Road statistics: the current streak for everyone, the rest for Premium -->
+    <div id="road-stats" class="side-panel hidden">
+      <div class="panel-header" data-i18n="stats.roadStats"></div>
+      <div id="road-stats-body" class="road-stats-body"></div>
+    </div>
+
     <!-- Prediction panel -->
     <div id="prediction-panel" class="prediction-panel hidden">
       <div class="prediction-header" data-i18n="prediction.title"></div>
@@ -70,6 +76,12 @@
     <!-- Road display canvas -->
     <div class="road-container">
       <canvas id="road-canvas" width="720" height="156"></canvas>
+    </div>
+
+    <!-- Ask Road (Premium) -->
+    <div id="ask-road-panel" class="side-panel hidden">
+      <div class="panel-header" data-i18n="askRoad.title"></div>
+      <div id="ask-road-body" class="ask-road-body"></div>
     </div>
 
     <!-- Server status + controls -->
@@ -124,6 +136,13 @@
         <div style="margin-top:12px;padding:12px;background:#1e1f2a;border-radius:8px;border:1px solid #2a2b35;">
           <div data-i18n="settings.upgradePlans" style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:8px;"></div>
           <div id="pricing-links" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <!-- Pattern alerts (Premium) -->
+        <div style="margin-top:12px;padding:12px;background:#1e1f2a;border-radius:8px;border:1px solid #2a2b35;">
+          <div data-i18n="settings.alerts" style="font-size:12px;font-weight:600;color:#a1a1aa;margin-bottom:4px;"></div>
+          <div data-i18n="settings.alertsDesc" style="font-size:10px;color:#71717a;margin-bottom:8px;"></div>
+          <div id="alert-settings"></div>
         </div>
 
         <!-- Help / Usage instructions -->

@@ -126,6 +126,11 @@ export function signalLabel(name: string): string {
   return keys[name] ? t(keys[name]) : name;
 }
 
+/** Names of the signals only Premium adds, to show Free users what they unlock */
+export function premiumSignalLabels(): string[] {
+  return [t('prediction.patternMatch'), t('prediction.derivedConsensus'), t('prediction.rhythm')];
+}
+
 /** Calculate shoe statistics */
 export function calculateStats(
   results: GameResult[],
