@@ -23,40 +23,48 @@
 </head>
 <body>
   <h1>Privacy Policy for RoadAnalyzer</h1>
-  <p class="last-updated">Last updated: March 19, 2026</p>
+  <p class="last-updated">Last updated: October 26, 2026</p>
 
   <h2>Introduction</h2>
-  <p>RoadAnalyzer ("we", "our", or "the extension") is a Chrome browser extension that analyzes baccarat road patterns for entertainment purposes. This Privacy Policy explains how we handle your information when you use our extension.</p>
+  <p>RoadAnalyzer ("we", "our", or "the extension") is a Chrome browser extension that analyzes baccarat road patterns for entertainment purposes. This Privacy Policy explains what information the extension handles, where it is sent, and why.</p>
 
-  <h2>Information We Collect</h2>
-  <p>We collect and store minimal information, all of which remains on your local device:</p>
+  <h2>Road Images Sent to Our Analysis Server</h2>
+  <p>RoadAnalyzer reads game results from an image of the road chart. This only starts after you click "Select Region" in the extension and drag a box around the road chart on a page.</p>
   <ul>
-    <li><strong>License Key:</strong> If you purchase a subscription (Ad-Free or Premium), your license key is stored locally in Chrome's storage (<code>chrome.storage.local</code>) for authentication purposes.</li>
-    <li><strong>Game Data:</strong> Baccarat game results you manually input are stored locally in your browser for analysis and display purposes.</li>
-    <li><strong>User Preferences:</strong> Your language preference and settings are stored locally.</li>
-  </ul>
-
-  <h2>Information We Do NOT Collect</h2>
-  <ul>
-    <li>We do <strong>not</strong> collect personal browsing history.</li>
-    <li>We do <strong>not</strong> transmit user data to any external server (except for license validation).</li>
-    <li>We do <strong>not</strong> collect personally identifiable information (PII).</li>
-    <li>We do <strong>not</strong> track your activity across websites.</li>
-    <li>We do <strong>not</strong> use cookies.</li>
-  </ul>
-
-  <h2>Third-Party Services</h2>
-  <p>Our extension integrates with the following third-party services:</p>
-  <ul>
-    <li><strong>LemonSqueezy:</strong> We use LemonSqueezy as our payment processor for subscription management. When you purchase a subscription, your payment information is handled directly by LemonSqueezy. Please refer to <a href="https://www.lemonsqueezy.com/privacy">LemonSqueezy's Privacy Policy</a> for details on how they handle your payment data.</li>
-    <li><strong>Google AdSense:</strong> The free tier of our extension may display advertisements served by Google AdSense. Google may use cookies and tracking technologies as part of their ad serving. Please refer to <a href="https://policies.google.com/privacy">Google's Privacy Policy</a> for more information.</li>
+    <li><strong>What is sent:</strong> a PNG image of the area you selected, and nothing else. To cut that area out, the extension takes a screenshot of the visible tab, but the rest of the screenshot never leaves your device.</li>
+    <li><strong>When it is sent:</strong> once right after you select the area, and then every 10 seconds while the tab you selected it on is the active tab in its window. An image is only sent when the selected area has changed since the last one.</li>
+    <li><strong>Where it goes:</strong> our analysis server at <code>road-analyzer-henna.vercel.app</code>, hosted on Vercel. The server reads the results from the image, sends them back to the extension, and does not save the image.</li>
+    <li><strong>How it stops:</strong> capturing ends when you close that tab or close the browser.</li>
   </ul>
 
   <h2>License Validation</h2>
-  <p>When you enter a license key, the extension communicates with LemonSqueezy's API to validate the key. This is the only network request initiated by the extension (aside from ad serving in the free tier). The validation response is cached locally for 24 hours to minimize network requests.</p>
+  <p>When you activate a license key, the extension sends it to LemonSqueezy's License API (<code>api.lemonsqueezy.com</code>), together with the name "RoadAnalyzer Chrome Extension" to label the activation. After that, it checks the key with LemonSqueezy at most about once a day, sending the license key and the activation ID, to confirm that your subscription is still active.</p>
 
-  <h2>Data Storage</h2>
-  <p>All data is stored locally on your device using Chrome's built-in storage API. No data is stored on external servers. You can clear all extension data at any time by removing the extension or clearing its data through Chrome's extension settings.</p>
+  <h2>Information Stored on Your Device</h2>
+  <p>The extension keeps the following in Chrome's built-in extension storage:</p>
+  <ul>
+    <li><strong>Settings and license</strong> (<code>chrome.storage.sync</code>): your language preference, whether you accepted the disclaimer, the position and size of the road area you selected, your plan (Free or Premium), your license key, its activation ID, and when the license was last checked. If Chrome sync is turned on, Chrome syncs these to your other Chrome browsers.</li>
+    <li><strong>Current session</strong> (<code>chrome.storage.session</code>): the results of the last analysis, the hands recorded since capturing started (so hands that scroll off the road chart are still counted), a fingerprint (hash) of the last image sent so unchanged images are not sent again, and which tab is being captured. Chrome clears these when you close the browser.</li>
+  </ul>
+  <p>Removing the extension deletes this data from your browser.</p>
+
+  <h2>Information We Do NOT Collect</h2>
+  <ul>
+    <li>We do <strong>not</strong> collect your browsing history.</li>
+    <li>We do <strong>not</strong> track your activity across websites.</li>
+    <li>We do <strong>not</strong> collect your name, email address, or other personally identifiable information through the extension.</li>
+    <li>The extension does <strong>not</strong> show advertisements, use analytics, or set cookies.</li>
+    <li>We do <strong>not</strong> sell any data.</li>
+  </ul>
+
+  <h2>Third-Party Services</h2>
+  <ul>
+    <li><strong>LemonSqueezy:</strong> our payment processor. When you buy a subscription, your payment details are handled by LemonSqueezy on their checkout page, not by the extension. See <a href="https://www.lemonsqueezy.com/privacy">LemonSqueezy's Privacy Policy</a>.</li>
+    <li><strong>Vercel:</strong> hosts our analysis server and processes the road images described above on our behalf. See <a href="https://vercel.com/legal/privacy-policy">Vercel's Privacy Policy</a>.</li>
+  </ul>
+
+  <h2>This Website</h2>
+  <p>The RoadAnalyzer home page loads Google AdSense. Google may use cookies to serve ads on it; see <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>. This does not apply to the extension.</p>
 
   <h2>Children's Privacy</h2>
   <p>Our extension is not intended for use by children under the age of 13. We do not knowingly collect information from children under 13.</p>

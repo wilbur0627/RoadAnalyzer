@@ -528,9 +528,10 @@
     }
     .pricing-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 1.5rem;
-      margin-top: 3rem;
+      max-width: 800px;
+      margin: 3rem auto 0;
     }
     .price-card {
       padding: 2.5rem 2rem;
@@ -551,7 +552,7 @@
       background: linear-gradient(180deg, rgba(212,168,83,0.06) 0%, var(--bg-card) 40%);
     }
     .price-card.featured::before {
-      content: 'Most Popular';
+      content: 'Recommended';
       position: absolute;
       top: -12px;
       left: 50%;
@@ -836,12 +837,12 @@
         <div class="feature-card reveal">
           <div class="feature-icon gold">🔮</div>
           <h3>Pattern Predictions</h3>
-          <p>Intelligent analysis of historical patterns to suggest the next likely outcome. Input at least 6 hands to activate predictions.</p>
+          <p>Intelligent analysis of historical patterns to suggest the next likely outcome. Predictions start after 10 hands, with confidence scaled down until there are 30.</p>
         </div>
         <div class="feature-card reveal">
-          <div class="feature-icon red">⌨️</div>
-          <h3>Manual Input</h3>
-          <p>Quickly record Banker, Player, or Tie results with simple keyboard shortcuts or button taps for effortless tracking.</p>
+          <div class="feature-icon red">🎯</div>
+          <h3>Region Capture</h3>
+          <p>Drag a box around the road chart once. RoadAnalyzer reads the results from that area and keeps them updated as new hands come in.</p>
         </div>
         <div class="feature-card reveal">
           <div class="feature-icon emerald">🌐</div>
@@ -856,7 +857,7 @@
         <div class="feature-card reveal">
           <div class="feature-icon red">🔑</div>
           <h3>License System</h3>
-          <p>Simple license key activation with LemonSqueezy. Upgrade to remove ads or unlock premium prediction features.</p>
+          <p>Simple license key activation with LemonSqueezy. Upgrade to Premium to unlock the advanced prediction signals.</p>
         </div>
       </div>
     </div>
@@ -961,39 +962,25 @@
           <div class="price-period">Forever free</div>
           <ul class="price-features">
             <li>All 5 road types</li>
-            <li>Manual input</li>
+            <li>Region capture</li>
+            <li>Floating overlay</li>
             <li>Multi-language support</li>
-            <li>Basic overlay</li>
-            <li class="disabled">Ad-supported</li>
-            <li class="disabled">Advanced predictions</li>
+            <li>Basic predictions (streak, frequency)</li>
+            <li class="disabled">Advanced prediction signals</li>
           </ul>
           <a href="https://chromewebstore.google.com/detail/jphoepmhpmbmlcimkeiihcddgabohkan" class="btn btn-ghost btn-price">Get Started</a>
         </div>
         <div class="price-card featured reveal">
-          <div class="price-tier">Ad-Free</div>
-          <div class="price-amount"><span class="currency">$</span>4.99</div>
-          <div class="price-period">per month</div>
-          <ul class="price-features">
-            <li>All 5 road types</li>
-            <li>Manual input</li>
-            <li>Multi-language support</li>
-            <li>Full overlay mode</li>
-            <li>No advertisements</li>
-            <li class="disabled">Advanced predictions</li>
-          </ul>
-          <a href="https://wbglot.lemonsqueezy.com/checkout/buy/2d270a7b-c1a6-4d67-bffb-1bb702dbf85c" class="btn btn-primary btn-price">Subscribe Now</a>
-        </div>
-        <div class="price-card reveal">
           <div class="price-tier">Premium</div>
           <div class="price-amount"><span class="currency">$</span>9.99</div>
           <div class="price-period">per month</div>
           <ul class="price-features">
             <li>All 5 road types</li>
-            <li>Manual input</li>
+            <li>Region capture</li>
+            <li>Floating overlay</li>
             <li>Multi-language support</li>
-            <li>Full overlay mode</li>
-            <li>No advertisements</li>
-            <li>Advanced predictions</li>
+            <li>Basic predictions (streak, frequency)</li>
+            <li>Advanced prediction signals (patterns, derived road consensus, rhythm)</li>
           </ul>
           <a href="https://wbglot.lemonsqueezy.com/checkout/buy/a648ed50-a12d-4c95-9322-106756d3ba19" class="btn btn-price gold">Go Premium</a>
         </div>
