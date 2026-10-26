@@ -53,16 +53,15 @@ def main():
         w, h = min(w, iw - x), min(h, ih - y)
         image = image[y:y+h, x:x+w]
 
-    cs = grid.get("cell_size", 1)
     color_map = {"B": (0, 0, 255), "P": (255, 0, 0), "T": (0, 180, 0)}
 
-    # Draw grid lines
+    # Draw the detected cells (x/y are cell centres in the cropped image)
     for c in result["cells"]:
-        x1 = c["col"] * cs
-        y1 = c["row"] * cs
+        x1 = c["x"] - c["w"] // 2
+        y1 = c["y"] - c["h"] // 2
         clr = color_map.get(c["result"], (128, 128, 128))
-        cv2.rectangle(image, (x1, y1), (x1 + cs, y1 + cs), clr, 2)
-        cv2.putText(image, c["result"], (x1 + 4, y1 + cs - 4),
+        cv2.rectangle(image, (x1, y1), (x1 + c["w"], y1 + c["h"]), clr, 2)
+        cv2.putText(image, c["result"], (x1 + 4, y1 + c["h"] - 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, clr, 1)
 
     cv2.imwrite("debug_grid.png", image)

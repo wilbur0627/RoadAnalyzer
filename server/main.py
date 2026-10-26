@@ -54,6 +54,12 @@ async def analyze(
     - region: Optional JSON string like '{"x":100,"y":600,"w":800,"h":200}'
     """
     image_bytes = await image.read()
+    if not image_bytes:
+        # cv2.imdecode raises on an empty buffer, which would surface as a 500
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Empty image", "cells": [], "sequence": []},
+        )
 
     # Parse region if provided
     region_tuple = None
@@ -61,7 +67,8 @@ async def analyze(
         try:
             r = json.loads(region)
             region_tuple = (int(r["x"]), int(r["y"]), int(r["w"]), int(r["h"]))
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, OverflowError):
+            # e.g. "abc" or NaN (ValueError), Infinity (OverflowError)
             pass
 
     # Save debug files only in local development
